@@ -4,12 +4,13 @@ import streamlit as st
 
 from rag_system import initialize_rag, load_pdf, load_docx
 from background_memory import onboard_user_background, retrieve_user_background
+from query_orchestrator import process_query
 
 
 st.set_page_config(page_title="TechMPower RAG Assistant", layout="wide")
 
 st.title("TechMPower RAG Assistant")
-st.caption("Document-grounded RAG system with multi-role responses")
+st.caption("Document-grounded RAG system with background-aware personalization")
 
 
 def load_resume_text(uploaded_file) -> str:
@@ -45,12 +46,29 @@ def display_citations(citations):
         st.write("No citations available.")
 
 
+def build_user_profile_from_background(retrieved_background: dict) -> dict:
+    structured = (retrieved_background or {}).get("structured_profile") or {}
+
+    return {
+        "role": structured.get("role_lens", "general"),
+        "technical_level": structured.get("technical_depth", "medium"),
+        "goal": "understanding",
+        "short_reason": structured.get("short_reason", "")
+    }
+
+
 if "rag" not in st.session_state:
     with st.spinner("Loading RAG system..."):
+        # 建议把你的项目 PDF 放在 data/docs/ 里
+        # 如果你现在仍然放在根目录，就改回 docs_dir="."
         st.session_state.rag = initialize_rag(docs_dir=".", force_rebuild=False)
 
 rag = st.session_state.rag
 
+
+# -----------------------------
+# Sidebar
+# -----------------------------
 st.sidebar.header("Settings")
 
 mode = st.sidebar.selectbox(
@@ -64,6 +82,8 @@ manual_role = st.sidebar.selectbox(
 )
 
 show_context = st.sidebar.checkbox("Show retrieved context", value=False)
+
+show_debug = st.sidebar.checkbox("Show debug info", value=True)
 
 uploaded_file = st.sidebar.file_uploader(
     "Upload resume (PDF/DOCX)",
@@ -80,9 +100,18 @@ allow_manual_override = st.sidebar.checkbox(
     value=True
 )
 
+user_id = st.sidebar.text_input("User ID", value="demo_user")
+
+
+# -----------------------------
+# Main input
+# -----------------------------
 query = st.text_area("Enter your question", height=140)
 
 
+# -----------------------------
+# Run
+# -----------------------------
 if st.button("Run"):
     if not query.strip():
         st.warning("Please enter a question.")
@@ -91,13 +120,19 @@ if st.button("Run"):
             inferred_profile = None
             effective_role = manual_role
             retrieved_background = None
+            orchestration_result = None
+            query_understanding = None
+            routing_decision = None
 
+            # -----------------------------
+            # Step 1: Onboard / update background memory
+            # -----------------------------
             if uploaded_file is not None and use_resume_profile:
                 with st.spinner("Reading resume and onboarding user background..."):
                     resume_text = load_resume_text(uploaded_file)
 
                     onboard_user_background(
-                        user_id="demo_user",
+                        user_id=user_id,
                         raw_background_inputs=[
                             {
                                 "source_type": "resume",
@@ -106,66 +141,103 @@ if st.button("Run"):
                         ]
                     )
 
+            # -----------------------------
+            # Step 2: Person 2 - Query understanding + routing
+            # -----------------------------
+            with st.spinner("Understanding query and planning workflow..."):
+                orchestration_result = process_query(
+                    user_id=user_id,
+                    raw_query=query,
+                    has_uploaded_project_doc=True
+                )
+
+            query_understanding = orchestration_result["query_understanding_object"]
+            routing_decision = orchestration_result["routing_decision"]
+
+            # -----------------------------
+            # Step 3: Clarification route
+            # -----------------------------
+            if routing_decision["route"] == "clarification":
+                st.subheader("Clarification Needed")
+                st.write(routing_decision["message"])
+
+                if show_debug:
+                    st.subheader("Query Understanding")
+                    st.json(query_understanding)
+
+                    st.subheader("Routing Decision")
+                    st.json(routing_decision)
+
+            # -----------------------------
+            # Step 4: Retrieval + generation routes
+            # -----------------------------
+            else:
+                # Background retrieval if requested
+                if "background_request" in routing_decision:
+                    bg_req = routing_decision["background_request"]
+
                     retrieved_background = retrieve_user_background(
-                        user_id="demo_user",
-                        query=query,
-                        recommended_chunk_types=[
-                            "role_identity",
-                            "knowledge_boundary",
-                            "expression_preference",
-                            "current_project",
-                            "technical_exposure"
-                        ]
+                        user_id=bg_req["user_id"],
+                        query=bg_req["query"],
+                        recommended_chunk_types=bg_req["recommended_background_chunk_types"]
                     )
 
-                    structured = retrieved_background.get("structured_profile") or {}
+                    if retrieved_background.get("structured_profile") is not None:
+                        inferred_profile = build_user_profile_from_background(retrieved_background)
 
-                    inferred_profile = {
-                        "role": structured.get("role_lens", "general"),
-                        "technical_level": structured.get("technical_depth", "medium"),
-                        "goal": "understanding",
-                        "short_reason": structured.get("short_reason", "")
-                    }
-
+                # Resolve final role
                 if inferred_profile and not allow_manual_override:
                     effective_role = inferred_profile["role"]
                 elif inferred_profile and allow_manual_override:
                     effective_role = manual_role
+                else:
+                    effective_role = manual_role
 
-            st.subheader("Active Profile")
-            if inferred_profile:
-                st.json(
-                    {
-                        "inferred_profile": inferred_profile,
-                        "effective_role_used_for_generation": effective_role,
-                        "background_retrieval": retrieved_background
-                    }
-                )
-            else:
-                st.json(
-                    {
-                        "effective_role_used_for_generation": effective_role,
-                        "profile_source": "manual selection"
-                    }
-                )
+                # Show debug info
+                if show_debug:
+                    st.subheader("Query Understanding")
+                    st.json(query_understanding)
 
-            with st.spinner("Generating answer..."):
-                result = rag.answer_question(
-                    query=query,
-                    mode=mode,
-                    role=effective_role,
-                    user_profile=inferred_profile
-                )
+                    st.subheader("Routing Decision")
+                    st.json(routing_decision)
 
-            st.subheader("Answer")
-            st.write(result["answer"])
+                st.subheader("Active Profile")
+                if inferred_profile:
+                    st.json(
+                        {
+                            "inferred_profile": inferred_profile,
+                            "effective_role_used_for_generation": effective_role,
+                            "background_retrieval": retrieved_background
+                        }
+                    )
+                else:
+                    st.json(
+                        {
+                            "effective_role_used_for_generation": effective_role,
+                            "profile_source": "manual selection"
+                        }
+                    )
 
-            st.subheader("Top Citations")
-            display_citations(result["citations"])
+                # -----------------------------
+                # Step 5: Project knowledge RAG + profile-aware generation
+                # -----------------------------
+                with st.spinner("Generating answer..."):
+                    result = rag.answer_question(
+                        query=query,
+                        mode=mode,
+                        role=effective_role,
+                        user_profile=inferred_profile
+                    )
 
-            if show_context:
-                st.subheader("Retrieved Context")
-                st.text(result["retrieved_context"])
+                st.subheader("Answer")
+                st.write(result["answer"])
+
+                st.subheader("Top Citations")
+                display_citations(result["citations"])
+
+                if show_context:
+                    st.subheader("Retrieved Context")
+                    st.text(result["retrieved_context"])
 
         except Exception as e:
             st.error(f"Error: {e}")
