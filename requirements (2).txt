@@ -1,0 +1,12 @@
+streamlit
+pypdf
+python-docx
+rank-bm25
+sentence-transformers
+faiss-cpu
+scikit-learn
+tqdm
+openai
+numpy
+torch
+torchvision
