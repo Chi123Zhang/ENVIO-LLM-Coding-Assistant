@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Dict
+from typing import Dict, List
 from openai import OpenAI
 
 
@@ -12,6 +12,9 @@ def _get_openai_client() -> OpenAI:
 
 
 def _parse_json_safely(text: str) -> Dict:
+    if not text:
+        raise ValueError("Empty response from model.")
+
     text = text.strip()
 
     if text.startswith("```json"):
@@ -22,7 +25,90 @@ def _parse_json_safely(text: str) -> Dict:
     if text.endswith("```"):
         text = text[:-3].strip()
 
+    first_brace = text.find("{")
+    last_brace = text.rfind("}")
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        text = text[first_brace:last_brace + 1]
+
     return json.loads(text)
+
+
+def _is_potentially_ambiguous_query(raw_query: str) -> Dict:
+    """
+    Lightweight ambiguity detector for common multi-meaning terms.
+    This is a rule-based first pass before LLM reasoning.
+    """
+    q = raw_query.strip().lower()
+
+    ambiguous_terms = {
+        "rag": {
+            "topic": "RAG",
+            "question": (
+                'Do you mean "Retrieval-Augmented Generation" in AI, '
+                'or "Red-Amber-Green" in project/status reporting?'
+            )
+        },
+        "api gateway": {
+            "topic": "API gateway",
+            "question": (
+                "Do you want a software architecture explanation of API Gateway, "
+                "or are you referring to a specific API gateway in your project?"
+            )
+        },
+        "orchestrator": {
+            "topic": "orchestrator",
+            "question": (
+                "Do you mean an orchestrator in AI/agent systems, "
+                "or a project-specific orchestrator in your uploaded documents?"
+            )
+        },
+    }
+
+    normalized = q.replace("?", "").strip()
+
+    for term, meta in ambiguous_terms.items():
+        if normalized == f"what is {term}" or normalized == term:
+            return {
+                "is_ambiguous": True,
+                "topic": meta["topic"],
+                "question": meta["question"]
+            }
+
+    return {
+        "is_ambiguous": False,
+        "topic": None,
+        "question": None
+    }
+
+
+def _default_background_chunk_types(query_type: str) -> List[str]:
+    if query_type == "concept_explanation":
+        return [
+            "role_identity",
+            "domain_context",
+            "technical_exposure",
+            "knowledge_boundary",
+            "expression_preference",
+        ]
+    if query_type == "comparison_question":
+        return [
+            "role_identity",
+            "technical_exposure",
+            "expression_preference",
+            "current_project",
+        ]
+    if query_type in {"project_explanation", "document_based_question", "workflow_explanation"}:
+        return [
+            "role_identity",
+            "knowledge_boundary",
+            "expression_preference",
+            "current_project",
+        ]
+    return [
+        "role_identity",
+        "domain_context",
+        "technical_exposure",
+    ]
 
 
 def understand_query(
@@ -34,6 +120,32 @@ def understand_query(
     Person 2 - Query Understanding
     Produces a Query Understanding Object.
     """
+
+    raw_query = raw_query.strip()
+
+    # -----------------------------
+    # Rule-based ambiguity first pass
+    # -----------------------------
+    ambiguity = _is_potentially_ambiguous_query(raw_query)
+    if ambiguity["is_ambiguous"]:
+        return {
+            "query_id": "q_auto",
+            "user_id": user_id,
+            "raw_query": raw_query,
+            "query_type": "clarification_needed",
+            "topic": ambiguity["topic"],
+            "subtopics": [],
+            "intent": "resolve_ambiguity",
+            "domain": "",
+            "requires_background_retrieval": False,
+            "requires_project_context": False,
+            "requires_external_knowledge": False,
+            "needs_clarification": True,
+            "clarification_reason": "The query term is ambiguous and has multiple plausible meanings.",
+            "suggested_clarification_question": ambiguity["question"],
+            "recommended_background_chunk_types": [],
+            "recommended_next_step": "clarification",
+        }
 
     client = _get_openai_client()
 
@@ -73,8 +185,7 @@ Allowed values:
 
 Important routing rules:
 1. If the user asks a general concept question like:
-   - What is RAG?
-   - What is an orchestrator?
+   - What is retrieval-augmented generation?
    - What is a vector database?
    - Explain API gateway
    then this is usually:
@@ -87,12 +198,12 @@ Important routing rules:
    - Explain this architecture
    - What is the study design in the uploaded document?
    - Summarize the uploaded note
-   - What does this project do?
+   - What does this project document say about X?
 
 3. If the question is vague and depends on missing context, set:
    - needs_clarification = true
 
-4. Background retrieval is usually useful for personalization, unless the query is purely generic and user modeling would add little value.
+4. Background retrieval is usually useful for personalization.
 
 Current context:
 - user_id = "{user_id}"
@@ -153,15 +264,29 @@ Current context:
             result[key] = False
 
     if not isinstance(result.get("recommended_background_chunk_types"), list):
-        result["recommended_background_chunk_types"] = []
+        result["recommended_background_chunk_types"] = _default_background_chunk_types(
+            result.get("query_type", "concept_explanation")
+        )
 
     result["recommended_background_chunk_types"] = [
         x for x in result["recommended_background_chunk_types"]
         if x in valid_chunk_types
     ]
 
+    if not result["recommended_background_chunk_types"]:
+        result["recommended_background_chunk_types"] = _default_background_chunk_types(
+            result.get("query_type", "concept_explanation")
+        )
+
     if result.get("recommended_next_step") not in valid_next_steps:
-        result["recommended_next_step"] = "retrieve_background_then_explain"
+        if result.get("needs_clarification", False):
+            result["recommended_next_step"] = "clarification"
+        elif result.get("requires_external_knowledge", False):
+            result["recommended_next_step"] = "external_knowledge_then_explain"
+        elif result.get("requires_project_context", False):
+            result["recommended_next_step"] = "retrieve_background_and_project_then_explain"
+        else:
+            result["recommended_next_step"] = "retrieve_background_then_explain"
 
     result["user_id"] = user_id
     result["raw_query"] = raw_query
@@ -230,7 +355,6 @@ def process_query(
     One-step wrapper:
     returns both query understanding and routing decision.
     """
-
     q_obj = understand_query(
         user_id=user_id,
         raw_query=raw_query,
