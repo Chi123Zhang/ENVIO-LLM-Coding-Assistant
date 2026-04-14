@@ -1,58 +1,12 @@
 import os
 import json
 import sqlite3
-from typing import Dict, List, Optional
+from typing import Dict, List
 from openai import OpenAI
+
 
 DB_PATH = "background_memory.db"
 
-
-# =========================================================
-# DB helpers
-# =========================================================
-
-def get_conn():
-    return sqlite3.connect(DB_PATH)
-
-
-def init_db():
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS user_profiles (
-        user_id TEXT PRIMARY KEY,
-        current_role TEXT,
-        role_lens TEXT,
-        industry_domain TEXT,
-        technical_depth TEXT,
-        business_depth TEXT,
-        preferred_explanation_style TEXT,
-        jargon_tolerance TEXT,
-        strength_areas TEXT,
-        weak_areas TEXT,
-        current_projects TEXT,
-        short_reason TEXT
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS background_chunks (
-        chunk_id TEXT PRIMARY KEY,
-        user_id TEXT,
-        chunk_type TEXT,
-        text TEXT,
-        FOREIGN KEY(user_id) REFERENCES user_profiles(user_id)
-    )
-    """)
-
-    conn.commit()
-    conn.close()
-
-
-# =========================================================
-# OpenAI helper
-# =========================================================
 
 def _get_openai_client() -> OpenAI:
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -61,37 +15,107 @@ def _get_openai_client() -> OpenAI:
     return OpenAI(api_key=api_key)
 
 
-# =========================================================
-# Step 1 + 2: Parse raw background into structured profile
-# =========================================================
+def _parse_json_safely(text: str) -> Dict:
+    if not text:
+        raise ValueError("Empty response from model.")
 
-def parse_user_background(user_id: str, raw_background_inputs: List[Dict]) -> Dict:
-    """
-    Parse raw user background into a structured profile.
+    text = text.strip()
 
-    raw_background_inputs example:
-    [
-        {"source_type": "resume", "raw_text": "..."},
-        {"source_type": "self_intro", "raw_text": "..."}
-    ]
-    """
-    combined_text = "\n\n".join(
-        f"[{item.get('source_type', 'unknown')}]\n{item.get('raw_text', '')}"
-        for item in raw_background_inputs
-        if item.get("raw_text")
-    ).strip()
+    if text.startswith("```json"):
+        text = text[len("```json"):].strip()
+    elif text.startswith("```"):
+        text = text[len("```"):].strip()
 
-    if not combined_text:
-        raise ValueError("No background text provided.")
+    if text.endswith("```"):
+        text = text[:-3].strip()
 
+    first_brace = text.find("{")
+    last_brace = text.rfind("}")
+
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        text = text[first_brace:last_brace + 1]
+
+    return json.loads(text)
+
+
+def _init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_profiles (
+            user_id TEXT PRIMARY KEY,
+            structured_profile_json TEXT
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS background_chunks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            chunk_type TEXT,
+            chunk_text TEXT
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+def _combine_raw_background(raw_background_inputs: List[Dict]) -> str:
+    texts = []
+    for item in raw_background_inputs:
+        raw_text = item.get("raw_text", "")
+        if raw_text:
+            texts.append(raw_text.strip())
+    return "\n\n".join(texts)
+
+
+def _fallback_profile(raw_text: str) -> Dict:
+    text_lower = raw_text.lower()
+
+    role_lens = "general"
+    if "product manager" in text_lower or "pm" in text_lower:
+        role_lens = "pm"
+    elif "engineer" in text_lower or "software" in text_lower or "developer" in text_lower:
+        role_lens = "engineer"
+    elif "business" in text_lower or "strategy" in text_lower or "marketing" in text_lower:
+        role_lens = "business"
+
+    technical_depth = "medium"
+    if any(x in text_lower for x in ["machine learning", "backend", "distributed", "python", "software engineer"]):
+        technical_depth = "high"
+    elif any(x in text_lower for x in ["non-technical", "beginner", "high-level only"]):
+        technical_depth = "low"
+
+    preferred_style = ["high_level"]
+    if "step-by-step" in text_lower or "step by step" in text_lower:
+        preferred_style = ["step_by_step"]
+    if "analogy" in text_lower:
+        preferred_style.append("analogy_driven")
+
+    return {
+        "current_role": role_lens,
+        "role_lens": role_lens,
+        "industry_domain": [],
+        "technical_depth": technical_depth,
+        "business_depth": "medium",
+        "preferred_explanation_style": preferred_style,
+        "jargon_tolerance": "medium",
+        "strength_areas": [],
+        "weak_areas": [],
+        "current_projects": [],
+        "short_reason": "Fallback profile generated from uploaded background text."
+    }
+
+
+def _parse_background_with_llm(raw_text: str) -> Dict:
     client = _get_openai_client()
 
     prompt = f"""
-You are extracting a structured user background profile for a personalized explanation agent.
+You are extracting a structured user profile from resume/background text.
 
-Given the user's background text, return ONLY valid JSON with exactly these keys:
-
-- user_id
+Return ONLY valid JSON with exactly these keys:
 - current_role
 - role_lens
 - industry_domain
@@ -109,17 +133,15 @@ Rules:
 - technical_depth must be one of: ["low", "medium", "high"]
 - business_depth must be one of: ["low", "medium", "high"]
 - jargon_tolerance must be one of: ["low", "medium", "high"]
-- industry_domain should be a list of strings
-- preferred_explanation_style should be a list of strings
-- strength_areas should be a list of strings
-- weak_areas should be a list of strings
-- current_projects should be a list of strings
-- short_reason should be a short explanation of the inferred profile
-
-Set user_id to "{user_id}"
+- industry_domain must be a list of strings
+- preferred_explanation_style must be a list of strings
+- strength_areas must be a list of strings
+- weak_areas must be a list of strings
+- current_projects must be a list of strings
+- short_reason should be one sentence
 
 Background text:
-{combined_text}
+{raw_text[:6000]}
 """
 
     response = client.chat.completions.create(
@@ -132,380 +154,198 @@ Background text:
     )
 
     content = response.choices[0].message.content.strip()
-    profile = json.loads(content)
-
-    valid_role_lens = {"general", "pm", "engineer", "business"}
-    valid_depth = {"low", "medium", "high"}
-
-    if profile.get("role_lens") not in valid_role_lens:
-        profile["role_lens"] = "general"
-    if profile.get("technical_depth") not in valid_depth:
-        profile["technical_depth"] = "medium"
-    if profile.get("business_depth") not in valid_depth:
-        profile["business_depth"] = "medium"
-    if profile.get("jargon_tolerance") not in valid_depth:
-        profile["jargon_tolerance"] = "medium"
-
-    for key in [
-        "industry_domain",
-        "preferred_explanation_style",
-        "strength_areas",
-        "weak_areas",
-        "current_projects",
-    ]:
-        if not isinstance(profile.get(key), list):
-            profile[key] = []
-
-    if "short_reason" not in profile:
-        profile["short_reason"] = ""
-
-    return profile
+    return _parse_json_safely(content)
 
 
-# =========================================================
-# Step 3: Chunk background
-# =========================================================
+def _normalize_profile(profile: Dict) -> Dict:
+    if not isinstance(profile, dict):
+        raise ValueError("Parsed profile is not a dictionary.")
 
-def chunk_user_background(raw_background_inputs: List[Dict], structured_profile: Dict) -> List[Dict]:
-    """
-    Convert background/profile into typed chunks.
-    """
-    user_id = structured_profile["user_id"]
+    valid_roles = {"general", "pm", "engineer", "business"}
+    valid_levels = {"low", "medium", "high"}
+
+    role_lens = profile.get("role_lens", "general")
+    if role_lens not in valid_roles:
+        role_lens = "general"
+
+    technical_depth = profile.get("technical_depth", "medium")
+    if technical_depth not in valid_levels:
+        technical_depth = "medium"
+
+    business_depth = profile.get("business_depth", "medium")
+    if business_depth not in valid_levels:
+        business_depth = "medium"
+
+    jargon_tolerance = profile.get("jargon_tolerance", "medium")
+    if jargon_tolerance not in valid_levels:
+        jargon_tolerance = "medium"
+
+    def ensure_list(x):
+        return x if isinstance(x, list) else []
+
+    return {
+        "current_role": profile.get("current_role", role_lens),
+        "role_lens": role_lens,
+        "industry_domain": ensure_list(profile.get("industry_domain")),
+        "technical_depth": technical_depth,
+        "business_depth": business_depth,
+        "preferred_explanation_style": ensure_list(profile.get("preferred_explanation_style")),
+        "jargon_tolerance": jargon_tolerance,
+        "strength_areas": ensure_list(profile.get("strength_areas")),
+        "weak_areas": ensure_list(profile.get("weak_areas")),
+        "current_projects": ensure_list(profile.get("current_projects")),
+        "short_reason": profile.get("short_reason", "")
+    }
+
+
+def _build_background_chunks(user_id: str, raw_text: str, structured_profile: Dict) -> List[Dict]:
     chunks = []
 
-    current_role = structured_profile.get("current_role", "")
-    role_lens = structured_profile.get("role_lens", "")
-    domains = structured_profile.get("industry_domain", [])
-    technical_depth = structured_profile.get("technical_depth", "medium")
-    business_depth = structured_profile.get("business_depth", "medium")
-    preferences = structured_profile.get("preferred_explanation_style", [])
-    jargon_tolerance = structured_profile.get("jargon_tolerance", "medium")
-    strengths = structured_profile.get("strength_areas", [])
-    weak_areas = structured_profile.get("weak_areas", [])
-    projects = structured_profile.get("current_projects", [])
-
-    if current_role or role_lens:
+    if structured_profile.get("role_lens"):
         chunks.append({
             "chunk_id": f"{user_id}_role_01",
-            "user_id": user_id,
             "chunk_type": "role_identity",
-            "text": f"The user currently works as {current_role} and should generally be addressed through a {role_lens} lens."
+            "text": f"The user role lens is {structured_profile['role_lens']}."
         })
 
-    if domains:
+    if structured_profile.get("industry_domain"):
         chunks.append({
             "chunk_id": f"{user_id}_domain_01",
-            "user_id": user_id,
             "chunk_type": "domain_context",
-            "text": f"The user's domain background includes: {', '.join(domains)}."
+            "text": "The user works in these domains: " + ", ".join(structured_profile["industry_domain"])
         })
 
-    chunks.append({
-        "chunk_id": f"{user_id}_technical_01",
-        "user_id": user_id,
-        "chunk_type": "technical_exposure",
-        "text": f"The user's technical depth is {technical_depth}, business depth is {business_depth}, and jargon tolerance is {jargon_tolerance}."
-    })
+    if structured_profile.get("technical_depth"):
+        chunks.append({
+            "chunk_id": f"{user_id}_tech_01",
+            "chunk_type": "technical_exposure",
+            "text": f"The user's technical depth is {structured_profile['technical_depth']}."
+        })
 
-    if weak_areas:
+    if structured_profile.get("weak_areas"):
         chunks.append({
             "chunk_id": f"{user_id}_boundary_01",
-            "user_id": user_id,
             "chunk_type": "knowledge_boundary",
-            "text": f"The user is less comfortable with: {', '.join(weak_areas)}."
+            "text": "The user's weaker areas include: " + ", ".join(structured_profile["weak_areas"])
         })
 
-    if preferences:
+    if structured_profile.get("preferred_explanation_style"):
         chunks.append({
             "chunk_id": f"{user_id}_pref_01",
-            "user_id": user_id,
             "chunk_type": "expression_preference",
-            "text": f"The user prefers explanations that are: {', '.join(preferences)}."
+            "text": "The user prefers explanations that are: " + ", ".join(structured_profile["preferred_explanation_style"])
         })
 
-    if strengths:
-        chunks.append({
-            "chunk_id": f"{user_id}_strength_01",
-            "user_id": user_id,
-            "chunk_type": "strength_area",
-            "text": f"The user's strength areas include: {', '.join(strengths)}."
-        })
-
-    if projects:
+    if structured_profile.get("current_projects"):
         chunks.append({
             "chunk_id": f"{user_id}_project_01",
-            "user_id": user_id,
             "chunk_type": "current_project",
-            "text": f"The user is currently working on: {', '.join(projects)}."
+            "text": "The user's current projects include: " + ", ".join(structured_profile["current_projects"])
         })
 
-    raw_text = "\n".join(
-        item.get("raw_text", "") for item in raw_background_inputs if item.get("raw_text")
-    ).strip()
-
-    if raw_text:
+    if not chunks and raw_text:
         chunks.append({
-            "chunk_id": f"{user_id}_raw_01",
-            "user_id": user_id,
-            "chunk_type": "raw_background",
-            "text": raw_text[:1500]
+            "chunk_id": f"{user_id}_fallback_01",
+            "chunk_type": "domain_context",
+            "text": raw_text[:500]
         })
 
     return chunks
 
 
-# =========================================================
-# Step 4: Store structured profile
-# =========================================================
+def onboard_user_background(user_id: str, raw_background_inputs: List[Dict]) -> Dict:
+    _init_db()
 
-def store_profile(user_id: str, structured_profile: Dict) -> Dict:
-    init_db()
-    conn = get_conn()
+    raw_text = _combine_raw_background(raw_background_inputs)
+
+    try:
+        parsed = _parse_background_with_llm(raw_text)
+        structured_profile = _normalize_profile(parsed)
+    except Exception:
+        structured_profile = _fallback_profile(raw_text)
+
+    chunks = _build_background_chunks(user_id, raw_text, structured_profile)
+
+    conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
-    cur.execute("""
-    INSERT OR REPLACE INTO user_profiles (
-        user_id,
-        current_role,
-        role_lens,
-        industry_domain,
-        technical_depth,
-        business_depth,
-        preferred_explanation_style,
-        jargon_tolerance,
-        strength_areas,
-        weak_areas,
-        current_projects,
-        short_reason
+    cur.execute(
+        """
+        INSERT OR REPLACE INTO user_profiles (user_id, structured_profile_json)
+        VALUES (?, ?)
+        """,
+        (user_id, json.dumps(structured_profile, ensure_ascii=False))
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        user_id,
-        structured_profile.get("current_role", ""),
-        structured_profile.get("role_lens", "general"),
-        json.dumps(structured_profile.get("industry_domain", []), ensure_ascii=False),
-        structured_profile.get("technical_depth", "medium"),
-        structured_profile.get("business_depth", "medium"),
-        json.dumps(structured_profile.get("preferred_explanation_style", []), ensure_ascii=False),
-        structured_profile.get("jargon_tolerance", "medium"),
-        json.dumps(structured_profile.get("strength_areas", []), ensure_ascii=False),
-        json.dumps(structured_profile.get("weak_areas", []), ensure_ascii=False),
-        json.dumps(structured_profile.get("current_projects", []), ensure_ascii=False),
-        structured_profile.get("short_reason", "")
-    ))
+
+    cur.execute("DELETE FROM background_chunks WHERE user_id = ?", (user_id,))
+    for chunk in chunks:
+        cur.execute(
+            """
+            INSERT INTO background_chunks (user_id, chunk_type, chunk_text)
+            VALUES (?, ?, ?)
+            """,
+            (user_id, chunk["chunk_type"], chunk["text"])
+        )
 
     conn.commit()
     conn.close()
 
     return {
         "user_id": user_id,
-        "profile_status": "stored",
-        "store_type": "sqlite"
-    }
-
-
-# =========================================================
-# Step 5: Store background chunks
-# =========================================================
-
-def store_chunks(user_id: str, background_chunks: List[Dict]) -> List[Dict]:
-    init_db()
-    conn = get_conn()
-    cur = conn.cursor()
-
-    # remove old chunks for this user
-    cur.execute("DELETE FROM background_chunks WHERE user_id = ?", (user_id,))
-
-    for chunk in background_chunks:
-        cur.execute("""
-        INSERT OR REPLACE INTO background_chunks (
-            chunk_id,
-            user_id,
-            chunk_type,
-            text
-        )
-        VALUES (?, ?, ?, ?)
-        """, (
-            chunk["chunk_id"],
-            chunk["user_id"],
-            chunk["chunk_type"],
-            chunk["text"]
-        ))
-
-    conn.commit()
-    conn.close()
-
-    return [
-        {
-            "chunk_id": chunk["chunk_id"],
-            "storage_status": "stored"
-        }
-        for chunk in background_chunks
-    ]
-
-
-# =========================================================
-# Full onboarding pipeline
-# =========================================================
-
-def onboard_user_background(user_id: str, raw_background_inputs: List[Dict]) -> Dict:
-    init_db()
-
-    structured_profile = parse_user_background(user_id, raw_background_inputs)
-    background_chunks = chunk_user_background(raw_background_inputs, structured_profile)
-
-    profile_store_result = store_profile(user_id, structured_profile)
-    chunk_store_result = store_chunks(user_id, background_chunks)
-
-    return {
         "structured_profile": structured_profile,
-        "background_chunks": background_chunks,
-        "profile_store_result": profile_store_result,
-        "chunk_store_result": chunk_store_result
+        "background_chunks": chunks
     }
 
 
-# =========================================================
-# Step 6: Retrieval at query time
-# =========================================================
+def retrieve_user_background(user_id: str, query: str, recommended_chunk_types: List[str]) -> Dict:
+    _init_db()
 
-def _simple_text_score(query: str, text: str) -> int:
-    q_terms = set(query.lower().split())
-    t_terms = set(text.lower().split())
-    return len(q_terms & t_terms)
-
-
-def retrieve_user_background(
-    user_id: str,
-    query: str,
-    recommended_chunk_types: Optional[List[str]] = None,
-    top_k: int = 4
-) -> Dict:
-    init_db()
-    conn = get_conn()
+    conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
-    cur.execute("""
-    SELECT
-        user_id,
-        current_role,
-        role_lens,
-        industry_domain,
-        technical_depth,
-        business_depth,
-        preferred_explanation_style,
-        jargon_tolerance,
-        strength_areas,
-        weak_areas,
-        current_projects,
-        short_reason
-    FROM user_profiles
-    WHERE user_id = ?
-    """, (user_id,))
+    cur.execute(
+        "SELECT structured_profile_json FROM user_profiles WHERE user_id = ?",
+        (user_id,)
+    )
     row = cur.fetchone()
 
-    if row is None:
-        conn.close()
-        return {
-            "user_id": user_id,
-            "structured_profile": None,
-            "retrieved_background_chunks": []
-        }
-
-    structured_profile = {
-        "user_id": row[0],
-        "current_role": row[1],
-        "role_lens": row[2],
-        "industry_domain": json.loads(row[3]) if row[3] else [],
-        "technical_depth": row[4],
-        "business_depth": row[5],
-        "preferred_explanation_style": json.loads(row[6]) if row[6] else [],
-        "jargon_tolerance": row[7],
-        "strength_areas": json.loads(row[8]) if row[8] else [],
-        "weak_areas": json.loads(row[9]) if row[9] else [],
-        "current_projects": json.loads(row[10]) if row[10] else [],
-        "short_reason": row[11],
-    }
+    structured_profile = {}
+    if row and row[0]:
+        try:
+            structured_profile = json.loads(row[0])
+        except Exception:
+            structured_profile = {}
 
     if recommended_chunk_types:
-        placeholders = ",".join("?" * len(recommended_chunk_types))
+        placeholders = ",".join(["?"] * len(recommended_chunk_types))
         sql = f"""
-        SELECT chunk_id, user_id, chunk_type, text
-        FROM background_chunks
-        WHERE user_id = ?
-        AND chunk_type IN ({placeholders})
+            SELECT chunk_type, chunk_text
+            FROM background_chunks
+            WHERE user_id = ?
+            AND chunk_type IN ({placeholders})
         """
         params = [user_id] + recommended_chunk_types
         cur.execute(sql, params)
     else:
-        cur.execute("""
-        SELECT chunk_id, user_id, chunk_type, text
-        FROM background_chunks
-        WHERE user_id = ?
-        """, (user_id,))
+        cur.execute(
+            """
+            SELECT chunk_type, chunk_text
+            FROM background_chunks
+            WHERE user_id = ?
+            """,
+            (user_id,)
+        )
 
     rows = cur.fetchall()
     conn.close()
 
-    chunks = [
-        {
-            "chunk_id": r[0],
-            "user_id": r[1],
-            "chunk_type": r[2],
-            "text": r[3]
-        }
-        for r in rows
+    retrieved_background_chunks = [
+        {"chunk_type": chunk_type, "text": chunk_text}
+        for chunk_type, chunk_text in rows
     ]
-
-    scored = []
-    for chunk in chunks:
-        score = _simple_text_score(query, chunk["text"])
-        scored.append((score, chunk))
-
-    scored.sort(key=lambda x: x[0], reverse=True)
-    top_chunks = [chunk for score, chunk in scored[:top_k]]
 
     return {
         "user_id": user_id,
-        "structured_profile": {
-            "role_lens": structured_profile.get("role_lens", "general"),
-            "technical_depth": structured_profile.get("technical_depth", "medium"),
-            "business_depth": structured_profile.get("business_depth", "medium"),
-            "jargon_tolerance": structured_profile.get("jargon_tolerance", "medium"),
-            "preferred_explanation_style": structured_profile.get("preferred_explanation_style", []),
-            "short_reason": structured_profile.get("short_reason", "")
-        },
-        "retrieved_background_chunks": top_chunks
+        "structured_profile": structured_profile,
+        "retrieved_background_chunks": retrieved_background_chunks
     }
-
-
-# =========================================================
-# Optional debug helpers
-# =========================================================
-
-def get_full_profile(user_id: str) -> Optional[Dict]:
-    result = retrieve_user_background(user_id=user_id, query="", recommended_chunk_types=None, top_k=10)
-    return result["structured_profile"]
-
-
-def get_all_chunks(user_id: str) -> List[Dict]:
-    init_db()
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-    SELECT chunk_id, user_id, chunk_type, text
-    FROM background_chunks
-    WHERE user_id = ?
-    """, (user_id,))
-    rows = cur.fetchall()
-    conn.close()
-
-    return [
-        {
-            "chunk_id": r[0],
-            "user_id": r[1],
-            "chunk_type": r[2],
-            "text": r[3]
-        }
-        for r in rows
-    ]
