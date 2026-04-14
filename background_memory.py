@@ -1,29 +1,58 @@
 import os
 import json
+import sqlite3
 from typing import Dict, List, Optional
 from openai import OpenAI
 
-
-PROFILE_DB_PATH = "background_profiles.json"
-CHUNK_DB_PATH = "background_chunks.json"
+DB_PATH = "background_memory.db"
 
 
-def _ensure_json_file(path: str, default_obj):
-    if not os.path.exists(path):
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(default_obj, f, ensure_ascii=False, indent=2)
+# =========================================================
+# DB helpers
+# =========================================================
+
+def get_conn():
+    return sqlite3.connect(DB_PATH)
 
 
-def _load_json(path: str, default_obj):
-    _ensure_json_file(path, default_obj)
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+def init_db():
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS user_profiles (
+        user_id TEXT PRIMARY KEY,
+        current_role TEXT,
+        role_lens TEXT,
+        industry_domain TEXT,
+        technical_depth TEXT,
+        business_depth TEXT,
+        preferred_explanation_style TEXT,
+        jargon_tolerance TEXT,
+        strength_areas TEXT,
+        weak_areas TEXT,
+        current_projects TEXT,
+        short_reason TEXT
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS background_chunks (
+        chunk_id TEXT PRIMARY KEY,
+        user_id TEXT,
+        chunk_type TEXT,
+        text TEXT,
+        FOREIGN KEY(user_id) REFERENCES user_profiles(user_id)
+    )
+    """)
+
+    conn.commit()
+    conn.close()
 
 
-def _save_json(path: str, obj):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(obj, f, ensure_ascii=False, indent=2)
-
+# =========================================================
+# OpenAI helper
+# =========================================================
 
 def _get_openai_client() -> OpenAI:
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -31,6 +60,10 @@ def _get_openai_client() -> OpenAI:
         raise EnvironmentError("OPENAI_API_KEY is not set.")
     return OpenAI(api_key=api_key)
 
+
+# =========================================================
+# Step 1 + 2: Parse raw background into structured profile
+# =========================================================
 
 def parse_user_background(user_id: str, raw_background_inputs: List[Dict]) -> Dict:
     """
@@ -99,7 +132,6 @@ Background text:
     )
 
     content = response.choices[0].message.content.strip()
-
     profile = json.loads(content)
 
     valid_role_lens = {"general", "pm", "engineer", "business"}
@@ -107,13 +139,10 @@ Background text:
 
     if profile.get("role_lens") not in valid_role_lens:
         profile["role_lens"] = "general"
-
     if profile.get("technical_depth") not in valid_depth:
         profile["technical_depth"] = "medium"
-
     if profile.get("business_depth") not in valid_depth:
         profile["business_depth"] = "medium"
-
     if profile.get("jargon_tolerance") not in valid_depth:
         profile["jargon_tolerance"] = "medium"
 
@@ -132,6 +161,10 @@ Background text:
 
     return profile
 
+
+# =========================================================
+# Step 3: Chunk background
+# =========================================================
 
 def chunk_user_background(raw_background_inputs: List[Dict], structured_profile: Dict) -> List[Dict]:
     """
@@ -206,7 +239,10 @@ def chunk_user_background(raw_background_inputs: List[Dict], structured_profile:
             "text": f"The user is currently working on: {', '.join(projects)}."
         })
 
-    raw_text = "\n".join(item.get("raw_text", "") for item in raw_background_inputs if item.get("raw_text")).strip()
+    raw_text = "\n".join(
+        item.get("raw_text", "") for item in raw_background_inputs if item.get("raw_text")
+    ).strip()
+
     if raw_text:
         chunks.append({
             "chunk_id": f"{user_id}_raw_01",
@@ -218,22 +254,86 @@ def chunk_user_background(raw_background_inputs: List[Dict], structured_profile:
     return chunks
 
 
+# =========================================================
+# Step 4: Store structured profile
+# =========================================================
+
 def store_profile(user_id: str, structured_profile: Dict) -> Dict:
-    db = _load_json(PROFILE_DB_PATH, {})
-    db[user_id] = structured_profile
-    _save_json(PROFILE_DB_PATH, db)
+    init_db()
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+    INSERT OR REPLACE INTO user_profiles (
+        user_id,
+        current_role,
+        role_lens,
+        industry_domain,
+        technical_depth,
+        business_depth,
+        preferred_explanation_style,
+        jargon_tolerance,
+        strength_areas,
+        weak_areas,
+        current_projects,
+        short_reason
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        user_id,
+        structured_profile.get("current_role", ""),
+        structured_profile.get("role_lens", "general"),
+        json.dumps(structured_profile.get("industry_domain", []), ensure_ascii=False),
+        structured_profile.get("technical_depth", "medium"),
+        structured_profile.get("business_depth", "medium"),
+        json.dumps(structured_profile.get("preferred_explanation_style", []), ensure_ascii=False),
+        structured_profile.get("jargon_tolerance", "medium"),
+        json.dumps(structured_profile.get("strength_areas", []), ensure_ascii=False),
+        json.dumps(structured_profile.get("weak_areas", []), ensure_ascii=False),
+        json.dumps(structured_profile.get("current_projects", []), ensure_ascii=False),
+        structured_profile.get("short_reason", "")
+    ))
+
+    conn.commit()
+    conn.close()
 
     return {
         "user_id": user_id,
         "profile_status": "stored",
-        "store_type": "json"
+        "store_type": "sqlite"
     }
 
 
+# =========================================================
+# Step 5: Store background chunks
+# =========================================================
+
 def store_chunks(user_id: str, background_chunks: List[Dict]) -> List[Dict]:
-    db = _load_json(CHUNK_DB_PATH, {})
-    db[user_id] = background_chunks
-    _save_json(CHUNK_DB_PATH, db)
+    init_db()
+    conn = get_conn()
+    cur = conn.cursor()
+
+    # remove old chunks for this user
+    cur.execute("DELETE FROM background_chunks WHERE user_id = ?", (user_id,))
+
+    for chunk in background_chunks:
+        cur.execute("""
+        INSERT OR REPLACE INTO background_chunks (
+            chunk_id,
+            user_id,
+            chunk_type,
+            text
+        )
+        VALUES (?, ?, ?, ?)
+        """, (
+            chunk["chunk_id"],
+            chunk["user_id"],
+            chunk["chunk_type"],
+            chunk["text"]
+        ))
+
+    conn.commit()
+    conn.close()
 
     return [
         {
@@ -244,10 +344,13 @@ def store_chunks(user_id: str, background_chunks: List[Dict]) -> List[Dict]:
     ]
 
 
+# =========================================================
+# Full onboarding pipeline
+# =========================================================
+
 def onboard_user_background(user_id: str, raw_background_inputs: List[Dict]) -> Dict:
-    """
-    Full onboarding pipeline.
-    """
+    init_db()
+
     structured_profile = parse_user_background(user_id, raw_background_inputs)
     background_chunks = chunk_user_background(raw_background_inputs, structured_profile)
 
@@ -262,6 +365,10 @@ def onboard_user_background(user_id: str, raw_background_inputs: List[Dict]) -> 
     }
 
 
+# =========================================================
+# Step 6: Retrieval at query time
+# =========================================================
+
 def _simple_text_score(query: str, text: str) -> int:
     q_terms = set(query.lower().split())
     t_terms = set(text.lower().split())
@@ -274,37 +381,88 @@ def retrieve_user_background(
     recommended_chunk_types: Optional[List[str]] = None,
     top_k: int = 4
 ) -> Dict:
-    """
-    Retrieve user background for downstream personalization.
-    Minimal MVP version: structured lookup + simple lexical scoring.
-    """
-    profiles = _load_json(PROFILE_DB_PATH, {})
-    chunks_db = _load_json(CHUNK_DB_PATH, {})
+    init_db()
+    conn = get_conn()
+    cur = conn.cursor()
 
-    structured_profile = profiles.get(user_id)
-    user_chunks = chunks_db.get(user_id, [])
+    cur.execute("""
+    SELECT
+        user_id,
+        current_role,
+        role_lens,
+        industry_domain,
+        technical_depth,
+        business_depth,
+        preferred_explanation_style,
+        jargon_tolerance,
+        strength_areas,
+        weak_areas,
+        current_projects,
+        short_reason
+    FROM user_profiles
+    WHERE user_id = ?
+    """, (user_id,))
+    row = cur.fetchone()
 
-    if structured_profile is None:
+    if row is None:
+        conn.close()
         return {
             "user_id": user_id,
             "structured_profile": None,
             "retrieved_background_chunks": []
         }
 
-    filtered_chunks = user_chunks
+    structured_profile = {
+        "user_id": row[0],
+        "current_role": row[1],
+        "role_lens": row[2],
+        "industry_domain": json.loads(row[3]) if row[3] else [],
+        "technical_depth": row[4],
+        "business_depth": row[5],
+        "preferred_explanation_style": json.loads(row[6]) if row[6] else [],
+        "jargon_tolerance": row[7],
+        "strength_areas": json.loads(row[8]) if row[8] else [],
+        "weak_areas": json.loads(row[9]) if row[9] else [],
+        "current_projects": json.loads(row[10]) if row[10] else [],
+        "short_reason": row[11],
+    }
+
     if recommended_chunk_types:
-        filtered_chunks = [
-            c for c in user_chunks
-            if c.get("chunk_type") in recommended_chunk_types
-        ]
+        placeholders = ",".join("?" * len(recommended_chunk_types))
+        sql = f"""
+        SELECT chunk_id, user_id, chunk_type, text
+        FROM background_chunks
+        WHERE user_id = ?
+        AND chunk_type IN ({placeholders})
+        """
+        params = [user_id] + recommended_chunk_types
+        cur.execute(sql, params)
+    else:
+        cur.execute("""
+        SELECT chunk_id, user_id, chunk_type, text
+        FROM background_chunks
+        WHERE user_id = ?
+        """, (user_id,))
+
+    rows = cur.fetchall()
+    conn.close()
+
+    chunks = [
+        {
+            "chunk_id": r[0],
+            "user_id": r[1],
+            "chunk_type": r[2],
+            "text": r[3]
+        }
+        for r in rows
+    ]
 
     scored = []
-    for chunk in filtered_chunks:
+    for chunk in chunks:
         score = _simple_text_score(query, chunk["text"])
         scored.append((score, chunk))
 
     scored.sort(key=lambda x: x[0], reverse=True)
-
     top_chunks = [chunk for score, chunk in scored[:top_k]]
 
     return {
@@ -319,3 +477,35 @@ def retrieve_user_background(
         },
         "retrieved_background_chunks": top_chunks
     }
+
+
+# =========================================================
+# Optional debug helpers
+# =========================================================
+
+def get_full_profile(user_id: str) -> Optional[Dict]:
+    result = retrieve_user_background(user_id=user_id, query="", recommended_chunk_types=None, top_k=10)
+    return result["structured_profile"]
+
+
+def get_all_chunks(user_id: str) -> List[Dict]:
+    init_db()
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT chunk_id, user_id, chunk_type, text
+    FROM background_chunks
+    WHERE user_id = ?
+    """, (user_id,))
+    rows = cur.fetchall()
+    conn.close()
+
+    return [
+        {
+            "chunk_id": r[0],
+            "user_id": r[1],
+            "chunk_type": r[2],
+            "text": r[3]
+        }
+        for r in rows
+    ]
