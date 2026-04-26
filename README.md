@@ -79,10 +79,15 @@ Outputs
 Each run generates:
 
 *_coding.csv → segment-level coding results
+
 batch_summary_coding.csv → merged dataset
+
 lda_topics.csv → topic modeling results
+
 llm_vs_human_comparison.csv → agreement metrics (if provided)
+
 envio_coding_report.pdf → final report
+
 .zip → all outputs bundled
 
 How to Run
