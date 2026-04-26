@@ -46,3 +46,12 @@ torch>=2.2.1
 openai>=1.12.0
 
 fpdf2>=2.7.8
+
+requests
+beautifulsoup4
+scikit-learn
+fpdf2
+
+bertopic
+umap-learn
+hdbscan
