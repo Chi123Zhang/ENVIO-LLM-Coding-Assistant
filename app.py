@@ -416,6 +416,7 @@ def run_lda_topic_modeling(texts, n_topics=5, n_words=10):
         min_df=1,
         max_features=1500,
         ngram_range=(1, 2),
+        token_pattern=r"(?u)\b[a-zA-Z][a-zA-Z]+\b",
     )
 
     X = vectorizer.fit_transform(texts)
@@ -464,77 +465,89 @@ def run_bertopic_optional(texts):
         return None, str(e)
 
 
-def pdf_safe_text(x, max_len=1200):
-    text = str(x).replace("\n", " ").replace("\r", " ")
+def pdf_safe_text(x, max_len=900):
+    text = str(x)
+    text = text.replace("\n", " ").replace("\r", " ")
     text = re.sub(r"\s+", " ", text).strip()
     text = text.encode("latin-1", "replace").decode("latin-1")
+    text = re.sub(r"([_/|\\-])", r"\1 ", text)
     return text[:max_len]
 
 
-def pdf_write(pdf, text, h=6):
-    text = pdf_safe_text(text)
+def pdf_write(pdf, text, h=6, max_len=900):
+    text = pdf_safe_text(text, max_len=max_len)
     if not text:
         text = " "
-    pdf.multi_cell(0, h, txt=text)
+    for i in range(0, len(text), 90):
+        line = text[i:i + 90]
+        pdf.multi_cell(0, h, txt=line)
 
 
 def generate_pdf_report(summary_df, code_counts, group_counts=None, topic_df=None, comparison_df=None, output_file="report.pdf"):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    pdf.set_left_margin(12)
+    pdf.set_right_margin(12)
 
-    pdf.cell(0, 10, txt="ENVIO LLM Coding Summary Report", ln=True, align="C")
-    pdf.ln(4)
+    pdf.set_font("Arial", size=12)
+    pdf_write(pdf, "ENVIO LLM Coding Summary Report", h=8)
 
     pdf.set_font("Arial", size=10)
     pdf_write(pdf, f"Total coded segments: {len(summary_df)}")
     pdf_write(pdf, f"Participants represented: {summary_df['participant_id'].nunique()}")
     pdf_write(pdf, f"Source types: {', '.join(sorted(summary_df['source_type'].dropna().unique()))}")
-    pdf.ln(3)
 
+    pdf.ln(2)
     pdf.set_font("Arial", size=11)
     pdf_write(pdf, "Overall Code Frequencies:")
-    pdf.set_font("Arial", size=10)
+    pdf.set_font("Arial", size=9)
     for code, count in code_counts.items():
-        pdf_write(pdf, f"{code}: {int(count)}")
+        pdf_write(pdf, f"{code}: {int(count)}", h=5, max_len=120)
 
     if group_counts is not None and not group_counts.empty:
-        pdf.ln(3)
+        pdf.ln(2)
         pdf.set_font("Arial", size=11)
         pdf_write(pdf, "Grouped Code Frequencies by Source Type:")
-        pdf.set_font("Arial", size=9)
+        pdf.set_font("Arial", size=8)
         for source_type, row in group_counts.iterrows():
-            summary = "; ".join([f"{c}={int(v)}" for c, v in row.items()])
-            pdf_write(pdf, f"{source_type}: {summary}", h=5)
+            pairs = [f"{str(c)}={int(v)}" for c, v in row.items()]
+            pdf_write(pdf, f"{source_type}: " + "; ".join(pairs), h=5, max_len=500)
 
     if topic_df is not None and not topic_df.empty:
-        pdf.ln(3)
+        pdf.ln(2)
         pdf.set_font("Arial", size=11)
         pdf_write(pdf, "Topic Modeling Results:")
-        pdf.set_font("Arial", size=9)
+        pdf.set_font("Arial", size=8)
         for _, row in topic_df.iterrows():
-            pdf_write(pdf, f"Topic {row['topic_id']}: {row['top_words']}", h=5)
+            pdf_write(pdf, f"Topic {row['topic_id']}: {row['top_words']}", h=5, max_len=400)
 
     if comparison_df is not None and not comparison_df.empty:
-        pdf.ln(3)
+        pdf.ln(2)
         pdf.set_font("Arial", size=11)
         pdf_write(pdf, "LLM vs Human Coding Agreement:")
-        pdf.set_font("Arial", size=9)
+        pdf.set_font("Arial", size=8)
         for _, row in comparison_df.iterrows():
             pdf_write(
                 pdf,
-                f"{row['code']} | Kappa={row['cohen_kappa']} | "
-                f"F1={row['f1']} | Human+={row['human_positive']} | LLM+={row['llm_positive']}",
+                f"{row['code']} | Kappa={row['cohen_kappa']} | F1={row['f1']} | "
+                f"Human={row['human_positive']} | LLM={row['llm_positive']}",
                 h=5,
+                max_len=300,
             )
 
-    pdf.ln(3)
+    pdf.ln(2)
     pdf.set_font("Arial", size=11)
     pdf_write(pdf, "Sample Coded Segments:")
     pdf.set_font("Arial", size=8)
-    for _, row in summary_df.head(8).iterrows():
-        pdf_write(pdf, f"Codes: {row['codes']} | Source: {row['source_type']} | Text: {row['text']}", h=5)
+
+    for _, row in summary_df.head(5).iterrows():
+        sample = (
+            f"Codes: {row['codes']} | "
+            f"Source: {row['source_type']} | "
+            f"Text: {str(row['text'])[:350]}"
+        )
+        pdf_write(pdf, sample, h=5, max_len=500)
         pdf.ln(1)
 
     pdf.output(output_file)
