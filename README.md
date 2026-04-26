@@ -177,8 +177,10 @@ This system aims to:
 
 Author
 
-Chi (Charlie) Zhang
+Chi Zhang
+
 M.A. in Statistics (Advanced Machine Learning)
+
 Columbia University
 
 Focus:
