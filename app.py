@@ -4,7 +4,6 @@ import tempfile
 import json
 import streamlit as st
 from openai import OpenAI
-from sklearn.metrics import cohen_kappa_score, f1_score
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -123,7 +122,6 @@ if st.button("Run"):
         output_folder = os.path.join(batch_folder, "llm_outputs")
         os.makedirs(output_folder, exist_ok=True)
         codebook = ["environmental_barrier","social_support","healthcare_access","stigma","mental_health"]
-        summary_list = []
 
         for f in glob.glob(os.path.join(batch_folder,"*.*")):
             base_name = os.path.splitext(os.path.basename(f))[0]
@@ -132,9 +130,14 @@ if st.button("Run"):
             aggregated_output = []
             for chunk in chunks:
                 aggregated_output.extend(run_llm_coding(chunk, codebook, client))
+            # JSON输出
             output_file = os.path.join(output_folder,f"{base_name}_coding.json")
             with open(output_file,"w",encoding="utf-8") as of:
                 json.dump(aggregated_output,of,indent=2,ensure_ascii=False)
+            # CSV输出
+            csv_file = os.path.join(output_folder,f"{base_name}_coding.csv")
+            rows = [{"text": seg["text"], "codes": ",".join(seg.get("codes",[]))} for seg in aggregated_output]
+            pd.DataFrame(rows).to_csv(csv_file,index=False)
             st.write(f"Saved LLM coding for {base_name}")
 
         st.success(f"Batch processing done. Outputs in {output_folder}")
