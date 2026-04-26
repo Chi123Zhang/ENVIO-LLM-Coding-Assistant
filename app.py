@@ -1,13 +1,10 @@
-import os
-import glob
-import tempfile
-import json
-import streamlit as st
+# app.py
+import os, glob, tempfile, json, streamlit as st
 from openai import OpenAI
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+from fpdf import FPDF
 from rag_system import initialize_rag, load_pdf, load_docx
 from background_memory import onboard_user_background, retrieve_user_background
 from query_orchestrator import process_query
@@ -17,7 +14,7 @@ st.title("ENVIO LLM Coding Assistant")
 st.caption("Document-grounded LLM coding and topic modeling for HIV care engagement transcripts")
 
 # -----------------------------
-# Helpers
+# Helper functions
 # -----------------------------
 def load_transcript_text(uploaded_file) -> str:
     suffix = os.path.splitext(uploaded_file.name)[1].lower()
@@ -70,17 +67,28 @@ Task:
     except json.JSONDecodeError:
         return [{"text": text_segment, "codes": ["PARSE_ERROR"], "raw": content}]
 
-def generate_batch_summary(output_folder):
-    all_csv_files = glob.glob(os.path.join(output_folder,"*_coding.csv"))
-    if not all_csv_files:
-        return None, None
-    all_dfs = [pd.read_csv(f) for f in all_csv_files]
-    summary_df = pd.concat(all_dfs, ignore_index=True)
-    code_counts = summary_df['codes'].str.get_dummies(sep=',').sum()
-    return summary_df, code_counts
+def generate_pdf_report(summary_df, code_counts, output_file="report.pdf"):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200,10,txt="ENVIO LLM Coding Batch Report", ln=True, align="C")
+    pdf.ln(5)
+    
+    pdf.cell(200,10,txt="Code Frequencies:", ln=True)
+    for code, count in code_counts.items():
+        pdf.cell(200, 8, txt=f"{code}: {count}", ln=True)
+    
+    pdf.ln(5)
+    pdf.cell(200,10,txt="Segment Samples:", ln=True)
+    for _, row in summary_df.head(10).iterrows():
+        pdf.multi_cell(0, 8, txt=f"{row['text']}\nCodes: {row['codes']}")
+        pdf.ln(2)
+    
+    pdf.output(output_file)
+    return output_file
 
 # -----------------------------
-# Init RAG
+# Initialize RAG
 # -----------------------------
 if "rag" not in st.session_state:
     with st.spinner("Loading RAG system..."):
@@ -88,7 +96,7 @@ if "rag" not in st.session_state:
 rag = st.session_state.rag
 
 # -----------------------------
-# Sidebar
+# Sidebar UI
 # -----------------------------
 st.sidebar.header("Settings")
 mode = st.sidebar.selectbox("Choose mode", ["coding", "qa", "summary"])
@@ -112,9 +120,13 @@ if st.button("Run"):
     client = OpenAI(api_key=api_key)
     codebook = ["environmental_barrier","social_support","healthcare_access","stigma","mental_health"]
 
-    # 默认 query
-    if not query.strip() and uploaded_file and mode=="coding":
-        query = "Please code this transcript using the standard codebook."
+    # 多用户 session
+    user_output_dir = os.path.join("outputs", user_id)
+    os.makedirs(user_output_dir, exist_ok=True)
+    if "users" not in st.session_state:
+        st.session_state["users"] = {}
+    if user_id not in st.session_state.users:
+        st.session_state.users[user_id] = {"profile": {}, "outputs": []}
 
     transcripts = []
     if uploaded_file:
@@ -128,62 +140,69 @@ if st.button("Run"):
     if not transcripts:
         st.warning("No transcript provided!")
     else:
+        all_outputs = []
         for tf in transcripts:
-            # 读取文本
-            if hasattr(tf, "read"):
-                text = load_transcript_text(tf)
-                fname_base = tf.name
-            else:
-                with open(tf,"rb") as f:
-                    text = load_transcript_text(f)
-                fname_base = os.path.basename(tf)
+            try:
+                if hasattr(tf, "read"):
+                    text = load_transcript_text(tf)
+                    fname_base = tf.name
+                else:
+                    with open(tf,"rb") as f:
+                        text = load_transcript_text(f)
+                    fname_base = os.path.basename(tf)
 
-            # profile
-            profile = {"role": manual_role, "technical_level":"medium", "goal":"understanding", "short_reason":""}
-            if use_resume_profile and uploaded_file:
-                onboard_user_background(user_id=user_id, raw_background_inputs=[{"source_type":"resume","raw_text":text}])
-                retrieved_background = retrieve_user_background(user_id=user_id, query=query, recommended_chunk_types=["knowledge_boundary","expression_preference","technical_exposure"])
-                if retrieved_background.get("structured_profile"):
-                    profile["role"] = retrieved_background["structured_profile"].get("role_lens",manual_role)
+                profile = {"role": manual_role, "technical_level":"medium", "goal":"understanding", "short_reason":""}
+                if use_resume_profile and uploaded_file:
+                    onboard_user_background(user_id=user_id, raw_background_inputs=[{"source_type":"resume","raw_text":text}])
+                    retrieved_background = retrieve_user_background(user_id=user_id, query=query, recommended_chunk_types=["knowledge_boundary","expression_preference","technical_exposure"])
+                    if retrieved_background.get("structured_profile"):
+                        profile["role"] = retrieved_background["structured_profile"].get("role_lens",manual_role)
+                st.session_state.users[user_id]["profile"] = profile
 
-            # -----------------------------
-            # Coding 模式
-            # -----------------------------
-            if mode=="coding":
-                chunks = [text[i:i+2000] for i in range(0,len(text),2000)]
-                aggregated_output = []
-                for chunk in chunks:
-                    # 获取 RAG 上下文
-                    rag_result = rag.answer_question(query=chunk, mode="coding", role=profile["role"], user_profile=profile)
-                    retrieved_context = rag_result.get("retrieved_context","")
-                    # LLM coding with context
-                    aggregated_output.extend(run_llm_coding_with_context(chunk, codebook, client, retrieved_context))
+                if mode=="coding":
+                    chunks = [text[i:i+2000] for i in range(0,len(text),2000)]
+                    aggregated_output = []
+                    for chunk in chunks:
+                        try:
+                            rag_result = rag.answer_question(query=chunk, mode="coding", role=profile["role"], user_profile=profile)
+                            retrieved_context = rag_result.get("retrieved_context","")
+                        except Exception as e:
+                            st.error(f"RAG retrieval failed: {e}")
+                            retrieved_context = ""
+                        try:
+                            aggregated_output.extend(run_llm_coding_with_context(chunk, codebook, client, retrieved_context))
+                        except Exception as e:
+                            st.error(f"LLM coding failed for chunk: {e}")
+                            aggregated_output.append({"text": chunk, "codes": ["ERROR"]})
 
-                # JSON 输出
-                st.subheader(f"Coding Output (JSON) for {fname_base}")
-                st.json(aggregated_output)
+                    st.subheader(f"Coding Output (JSON) for {fname_base}")
+                    st.json(aggregated_output)
 
-                # CSV 输出
-                csv_file = f"{fname_base}_coding.csv"
-                df = pd.DataFrame([{"segment_index":i+1,"file_name":fname_base,"text": seg["text"], "codes": ",".join(seg.get("codes",[]))} for i, seg in enumerate(aggregated_output)])
-                df.to_csv(csv_file,index=False)
-                st.write(f"CSV saved: {csv_file}")
-                with open(csv_file,"rb") as f:
-                    st.download_button(label=f"Download {csv_file}", data=f, file_name=csv_file, mime="text/csv")
+                    csv_file = os.path.join(user_output_dir, f"{fname_base}_coding.csv")
+                    df = pd.DataFrame([{"segment_index":i+1,"file_name":fname_base,"text": seg["text"], "codes": ",".join(seg.get("codes",[]))} for i, seg in enumerate(aggregated_output)])
+                    df.to_csv(csv_file,index=False)
+                    st.download_button(label=f"Download {fname_base} CSV", data=open(csv_file,"rb"), file_name=f"{fname_base}_coding.csv", mime="text/csv")
+                    all_outputs.append(df)
 
-                # Batch 汇总
-                output_folder = batch_folder if batch_folder else "."
-                summary_df, code_counts = generate_batch_summary(output_folder)
-                if summary_df is not None:
-                    st.subheader("Batch Code Frequency Heatmap")
-                    fig, ax = plt.subplots(figsize=(10,2))
-                    sns.heatmap(code_counts.to_frame().T, annot=True, fmt="d", cmap="Blues", ax=ax)
-                    st.pyplot(fig)
+            except Exception as e:
+                st.error(f"Error processing file {tf}: {e}")
 
-            # -----------------------------
-            # QA / Summary 模式
-            # -----------------------------
-            else:
+        # Batch summary + heatmap + PDF
+        if all_outputs:
+            summary_df = pd.concat(all_outputs, ignore_index=True)
+            code_counts = summary_df['codes'].str.get_dummies(sep=',').sum()
+            st.subheader("Batch Code Frequency Heatmap")
+            fig, ax = plt.subplots(figsize=(10,2))
+            sns.heatmap(code_counts.to_frame().T, annot=True, fmt="d", cmap="Blues", ax=ax)
+            st.pyplot(fig)
+
+            pdf_file = os.path.join(user_output_dir,"batch_summary.pdf")
+            generate_pdf_report(summary_df, code_counts, pdf_file)
+            st.download_button("Download PDF Report", data=open(pdf_file,"rb"), file_name="batch_summary.pdf", mime="application/pdf")
+
+        # QA / Summary
+        if mode in ["qa","summary"]:
+            try:
                 result = rag.answer_question(query=query, mode=mode, role=profile["role"], user_profile=profile)
                 st.subheader("Answer")
                 st.write(result.get("answer","No answer returned."))
@@ -192,8 +211,9 @@ if st.button("Run"):
                 if show_context:
                     st.subheader("Retrieved Context")
                     st.text(result.get("retrieved_context",""))
+            except Exception as e:
+                st.error(f"QA/Summary failed: {e}")
 
-            # debug
-            if show_debug:
-                st.subheader("Routing / Active Profile")
-                st.json({"profile": profile})
+        if show_debug:
+            st.subheader("Routing / Active Profile")
+            st.json({"profile": profile})
