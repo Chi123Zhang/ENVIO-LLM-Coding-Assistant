@@ -75,7 +75,7 @@ Retrieval-Augmented Generation (RAG)
 Incorporates background documents into coding context
 Improves domain-specific interpretation
 
-Outputs
+⚙️ Outputs
 Each run generates:
 
 *_coding.csv → segment-level coding results
@@ -90,7 +90,7 @@ envio_coding_report.pdf → final report
 
 .zip → all outputs bundled
 
-How to Run
+⚙️ How to Run
 1. Install dependencies
 pip install -r requirements.txt
 
@@ -107,9 +107,11 @@ beautifulsoup4
 requests
 
 2. Set OpenAI API key
+
 export OPENAI_API_KEY=your_key_here
 
 3. Run the app
+
 streamlit run app.py
 
 Example Workflow
@@ -123,7 +125,7 @@ Download:
 PDF report (recommended)
 ZIP file (full reproducibility)
 
-Research Motivation
+⚙️ Research Motivation
 
 Traditional qualitative coding:
 
@@ -138,16 +140,22 @@ Provide consistent coding structure
 Enable rapid exploratory analysis
 Support (not replace) human interpretation
 
-Limitations
+⚙️ Limitations
 LLM outputs may vary depending on prompt and context
+
 Coding quality depends on codebook clarity
+
 Topic modeling is unsupervised and may require interpretation
+
 Human-coded ground truth is needed for rigorous evaluation
 
-Future Work
+⚙️ Future Work
 Improved human–LLM agreement benchmarking
+
 Better domain adaptation via fine-tuning
+
 Enhanced multi-document reasoning
+
 Integration with qualitative research tools (e.g., NVivo-like workflows)
 
 Author
