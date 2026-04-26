@@ -5,8 +5,6 @@ import json
 import streamlit as st
 from openai import OpenAI
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 from rag_system import initialize_rag, load_pdf, load_docx
 from background_memory import onboard_user_background, retrieve_user_background
@@ -67,21 +65,6 @@ Task:
     except json.JSONDecodeError:
         return [{"text": text_segment, "codes": ["PARSE_ERROR"], "raw": content}]
 
-def display_citations(citations):
-    if citations:
-        for c in citations:
-            page = f"p.{c['page']}" if c.get("page") else "doc"
-            st.write(f"{c.get('source_file','unknown')} | {page} | {c.get('section','unknown')} | {c.get('aim','unknown')} | score={c.get('score','n/a')}")
-    else:
-        st.write("No citations available.")
-
-def build_user_profile_from_background(retrieved_background: dict) -> dict:
-    structured = (retrieved_background or {}).get("structured_profile") or {}
-    role = structured.get("role_lens", "general")
-    if role == "product_manager":
-        role = "pm"
-    return {"role": role, "technical_level": structured.get("technical_depth","medium"), "goal":"understanding", "short_reason":structured.get("short_reason","")}
-
 # -----------------------------
 # Init RAG
 # -----------------------------
@@ -131,14 +114,14 @@ if st.button("Run"):
             for chunk in chunks:
                 aggregated_output.extend(run_llm_coding(chunk, codebook, client))
             # JSON输出
-            output_file = os.path.join(output_folder,f"{base_name}_coding.json")
-            with open(output_file,"w",encoding="utf-8") as of:
+            json_file = os.path.join(output_folder,f"{base_name}_coding.json")
+            with open(json_file,"w",encoding="utf-8") as of:
                 json.dump(aggregated_output,of,indent=2,ensure_ascii=False)
             # CSV输出
             csv_file = os.path.join(output_folder,f"{base_name}_coding.csv")
             rows = [{"text": seg["text"], "codes": ",".join(seg.get("codes",[]))} for seg in aggregated_output]
             pd.DataFrame(rows).to_csv(csv_file,index=False)
-            st.write(f"Saved LLM coding for {base_name}")
+            st.write(f"Saved LLM coding for {base_name} → JSON & CSV")
 
         st.success(f"Batch processing done. Outputs in {output_folder}")
 
@@ -163,14 +146,12 @@ if st.button("Run"):
             bg_req = routing_decision["background_request"]
             retrieved_background = retrieve_user_background(user_id=bg_req["user_id"], query=bg_req["query"], recommended_chunk_types=bg_req["recommended_background_chunk_types"])
             if retrieved_background.get("structured_profile"):
-                inferred_profile = build_user_profile_from_background(retrieved_background)
-        if inferred_profile:
-            effective_role = manual_role if (allow_manual_override and manual_role!="general") else inferred_profile["role"]
+                effective_role = manual_role if (allow_manual_override and manual_role!="general") else retrieved_background["structured_profile"].get("role_lens","general")
 
-        # 显示 debug
+        # Debug
         if show_debug:
             st.subheader("Routing Decision / Active Profile")
-            st.json({"routing": routing_decision, "profile": inferred_profile, "effective_role": effective_role})
+            st.json({"routing": routing_decision, "profile": retrieved_background, "effective_role": effective_role})
 
         # 生成输出
         if mode=="coding":
@@ -182,13 +163,18 @@ if st.button("Run"):
                 aggregated_output.extend(run_llm_coding(chunk, codebook, client))
             st.subheader("Coding Output (JSON)")
             st.json(aggregated_output)
+            # 自动生成 CSV
+            csv_file = f"{uploaded_file.name}_coding.csv" if uploaded_file else "query_coding.csv"
+            rows = [{"text": seg["text"], "codes": ",".join(seg.get("codes",[]))} for seg in aggregated_output]
+            pd.DataFrame(rows).to_csv(csv_file,index=False)
+            st.write(f"CSV saved: {csv_file}")
+
         else:
-            # QA/Summary模式
-            result = rag.answer_question(query=query, mode=mode, role=effective_role, user_profile=inferred_profile)
+            result = rag.answer_question(query=query, mode=mode, role=effective_role, user_profile=retrieved_background)
             st.subheader("Answer")
             st.write(result["answer"])
             st.subheader("Top Citations")
-            display_citations(result.get("citations",[]))
+            st.write(result.get("citations",[]))
             if show_context:
                 st.subheader("Retrieved Context")
                 st.text(result.get("retrieved_context",""))
