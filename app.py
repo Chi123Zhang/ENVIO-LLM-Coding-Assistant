@@ -41,9 +41,6 @@ DEFAULT_CODING_QUERY = (
 )
 
 
-# -----------------------------
-# Basic utilities
-# -----------------------------
 def safe_filename(name: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(name)).strip("_")
 
@@ -65,14 +62,12 @@ def infer_date_from_name(name):
 
 def infer_source_type(name, text=""):
     low = f"{name} {text[:1000]}".lower()
-
     if any(x in low for x in ["costing", "cost questions", "cost-effectiveness", "cost "]):
         return "costing"
     if any(x in low for x in ["policy", "protocol", "irb", "datasheet", "human subjects", "privacy", "security"]):
         return "policy"
     if any(x in low for x in ["interview", "qual interview", "transcript", "participant", "moderator"]):
         return "interview"
-
     return "other"
 
 
@@ -80,7 +75,6 @@ def chunk_text(text: str, chunk_chars: int = 3500, overlap_chars: int = 300):
     text = text.strip()
     if not text:
         return []
-
     chunks = []
     start = 0
     while start < len(text):
@@ -92,17 +86,12 @@ def chunk_text(text: str, chunk_chars: int = 3500, overlap_chars: int = 300):
     return chunks
 
 
-# -----------------------------
-# Load uploaded files and URLs
-# -----------------------------
 def load_transcript_text(uploaded_file) -> str:
     uploaded_file.seek(0)
     suffix = os.path.splitext(uploaded_file.name)[1].lower()
-
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(uploaded_file.read())
         tmp_path = tmp.name
-
     try:
         if suffix == ".pdf":
             pages = load_pdf(tmp_path)
@@ -124,7 +113,6 @@ def load_text_from_url(url):
         headers = {"User-Agent": "Mozilla/5.0"}
         r = requests.get(url, headers=headers, timeout=20)
         r.raise_for_status()
-
         content_type = r.headers.get("content-type", "").lower()
 
         if url.lower().endswith(".pdf") or "application/pdf" in content_type:
@@ -155,28 +143,24 @@ def build_source_records(uploaded_files, url_input, merge_files=True):
         for f in uploaded_files:
             text = load_transcript_text(f)
             if text.strip():
-                source_records.append(
-                    {
-                        "source_name": f.name,
-                        "source_text": text,
-                        "source_kind": infer_source_type(f.name, text),
-                        "source_date": infer_date_from_name(f.name),
-                    }
-                )
+                source_records.append({
+                    "source_name": f.name,
+                    "source_text": text,
+                    "source_kind": infer_source_type(f.name, text),
+                    "source_date": infer_date_from_name(f.name),
+                })
 
     if url_input.strip():
         urls = [u.strip() for u in url_input.splitlines() if u.strip()]
         for url in urls:
             text = load_text_from_url(url)
             if text.strip():
-                source_records.append(
-                    {
-                        "source_name": url,
-                        "source_text": text,
-                        "source_kind": infer_source_type(url, text),
-                        "source_date": infer_date_from_name(url),
-                    }
-                )
+                source_records.append({
+                    "source_name": url,
+                    "source_text": text,
+                    "source_kind": infer_source_type(url, text),
+                    "source_date": infer_date_from_name(url),
+                })
 
     if not source_records:
         return []
@@ -189,16 +173,11 @@ def build_source_records(uploaded_files, url_input, merge_files=True):
 
     for r in source_records:
         r["participant_id"] = infer_participant_id([r["source_name"]])
-
     return source_records
 
 
-# -----------------------------
-# LLM coding
-# -----------------------------
 def extract_json_object(content: str):
     content = content.strip()
-
     if content.startswith("```"):
         content = re.sub(r"^```(?:json)?", "", content).strip()
         content = re.sub(r"```$", "", content).strip()
@@ -214,7 +193,6 @@ def extract_json_object(content: str):
     match = re.search(r"\{.*\}", content, flags=re.DOTALL)
     if match:
         return json.loads(match.group(0))
-
     raise json.JSONDecodeError("Could not parse JSON", content, 0)
 
 
@@ -262,7 +240,6 @@ Required JSON schema:
   ]
 }}
 """
-
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0,
@@ -273,27 +250,23 @@ Required JSON schema:
     )
 
     content = response.choices[0].message.content.strip()
-
     try:
         parsed = extract_json_object(content)
         return parsed.get("segments", [])
     except Exception:
-        return [
-            {
-                "text": text_segment,
-                "codes": ["PARSE_ERROR"],
-                "rationale": "The model output could not be parsed as JSON.",
-                "source_section": source_section,
-                "source_type": source_kind,
-                "raw": content,
-            }
-        ]
+        return [{
+            "text": text_segment,
+            "codes": ["PARSE_ERROR"],
+            "rationale": "The model output could not be parsed as JSON.",
+            "source_section": source_section,
+            "source_type": source_kind,
+            "raw": content,
+        }]
 
 
 def get_rag_context(rag, query, profile, use_rag=True):
     if not use_rag:
         return ""
-
     try:
         result = rag.answer_question(
             query=query,
@@ -313,27 +286,20 @@ def make_coding_dataframe(segments, participant_id, source_name, source_kind, so
         codes = seg.get("codes", [])
         if not isinstance(codes, list):
             codes = [str(codes)]
-
-        rows.append(
-            {
-                "participant_id": participant_id,
-                "segment_index": i,
-                "source_name": source_name,
-                "source_type": seg.get("source_type", source_kind),
-                "source_date": source_date,
-                "source_section": seg.get("source_section", ""),
-                "text": seg.get("text", ""),
-                "codes": ",".join(codes),
-                "rationale": seg.get("rationale", ""),
-            }
-        )
-
+        rows.append({
+            "participant_id": participant_id,
+            "segment_index": i,
+            "source_name": source_name,
+            "source_type": seg.get("source_type", source_kind),
+            "source_date": source_date,
+            "source_section": seg.get("source_section", ""),
+            "text": seg.get("text", ""),
+            "codes": ",".join(codes),
+            "rationale": seg.get("rationale", ""),
+        })
     return pd.DataFrame(rows)
 
 
-# -----------------------------
-# Analysis
-# -----------------------------
 def code_frequency(df):
     if df.empty or "codes" not in df.columns:
         return pd.Series(dtype=int)
@@ -343,21 +309,30 @@ def code_frequency(df):
 def code_frequency_by_group(df, group_col):
     if df.empty or group_col not in df.columns:
         return pd.DataFrame()
-
     tmp = df.copy()
     dummies = tmp["codes"].fillna("").str.get_dummies(sep=",")
-    grouped = pd.concat([tmp[[group_col]], dummies], axis=1).groupby(group_col).sum()
-    return grouped
+    return pd.concat([tmp[[group_col]], dummies], axis=1).groupby(group_col).sum()
+
+
+def normalize_code_string(x):
+    if pd.isna(x):
+        return []
+    return [c.strip() for c in str(x).replace(";", ",").split(",") if c.strip()]
 
 
 def compare_llm_human(llm_df, human_df, codebook):
     results = []
 
-    if "segment_index" in human_df.columns and "segment_index" in llm_df.columns:
+    join_cols = []
+    for col in ["participant_id", "source_type", "segment_index"]:
+        if col in llm_df.columns and col in human_df.columns:
+            join_cols.append(col)
+
+    if join_cols:
         merged = pd.merge(
             llm_df,
             human_df,
-            on="segment_index",
+            on=join_cols,
             suffixes=("_llm", "_human"),
             how="inner",
         )
@@ -365,74 +340,104 @@ def compare_llm_human(llm_df, human_df, codebook):
         human_col = "codes_human"
     else:
         n = min(len(llm_df), len(human_df))
-        merged = pd.DataFrame(
-            {
-                "codes_llm": llm_df["codes"].head(n).values,
-                "codes_human": human_df["codes"].head(n).values,
-            }
-        )
+        merged = pd.DataFrame({
+            "codes_llm": llm_df["codes"].head(n).values,
+            "codes_human": human_df["codes"].head(n).values,
+        })
         llm_col = "codes_llm"
         human_col = "codes_human"
 
+    if merged.empty:
+        return pd.DataFrame([{
+            "code": "NO_MATCH",
+            "cohen_kappa": None,
+            "f1": None,
+            "human_positive": 0,
+            "llm_positive": 0,
+            "matched_segments": 0,
+        }])
+
     for code in codebook:
-        y_llm = merged[llm_col].fillna("").apply(lambda x: int(code in str(x).split(",")))
-        y_human = merged[human_col].fillna("").apply(lambda x: int(code in str(x).split(",")))
+        y_llm = merged[llm_col].apply(lambda x: int(code in normalize_code_string(x)))
+        y_human = merged[human_col].apply(lambda x: int(code in normalize_code_string(x)))
 
         try:
-            kappa = cohen_kappa_score(y_human, y_llm)
+            kappa = round(cohen_kappa_score(y_human, y_llm), 4)
         except Exception:
             kappa = None
 
         try:
-            f1 = f1_score(y_human, y_llm, zero_division=0)
+            f1 = round(f1_score(y_human, y_llm, zero_division=0), 4)
         except Exception:
             f1 = None
 
-        results.append(
-            {
-                "code": code,
-                "cohen_kappa": kappa,
-                "f1": f1,
-                "human_positive": int(y_human.sum()),
-                "llm_positive": int(y_llm.sum()),
-            }
-        )
+        results.append({
+            "code": code,
+            "cohen_kappa": kappa,
+            "f1": f1,
+            "human_positive": int(y_human.sum()),
+            "llm_positive": int(y_llm.sum()),
+            "matched_segments": len(merged),
+        })
+
+    macro_f1 = pd.Series([r["f1"] for r in results if r["f1"] is not None]).mean()
+    macro_kappa = pd.Series([r["cohen_kappa"] for r in results if r["cohen_kappa"] is not None]).mean()
+
+    results.append({
+        "code": "MACRO_AVERAGE",
+        "cohen_kappa": round(macro_kappa, 4) if pd.notna(macro_kappa) else None,
+        "f1": round(macro_f1, 4) if pd.notna(macro_f1) else None,
+        "human_positive": "",
+        "llm_positive": "",
+        "matched_segments": len(merged),
+    })
 
     return pd.DataFrame(results)
 
 
-def run_lda_topic_modeling(texts, n_topics=5, n_words=8):
-    texts = [str(t) for t in texts if str(t).strip()]
+def run_lda_topic_modeling(texts, n_topics=5, n_words=10):
+    custom_stop_words = [
+        "like", "think", "know", "maybe", "kind", "sort", "just", "yeah",
+        "um", "uh", "really", "thing", "things", "people", "lot", "don",
+        "does", "did", "going", "say", "said", "way", "got", "get",
+        "okay", "right", "actually", "probably", "basically", "stuff"
+    ]
+
+    texts = [str(t).lower() for t in texts if str(t).strip()]
     if len(texts) < 3:
         return pd.DataFrame(), pd.DataFrame()
 
+    english_stop = CountVectorizer(stop_words="english").get_stop_words()
+    stop_words = list(set(english_stop).union(custom_stop_words))
+
     vectorizer = CountVectorizer(
-        stop_words="english",
-        max_df=0.9,
+        stop_words=stop_words,
+        max_df=0.85,
         min_df=1,
-        max_features=1000,
+        max_features=1500,
+        ngram_range=(1, 2),
     )
+
     X = vectorizer.fit_transform(texts)
 
     lda = LatentDirichletAllocation(
         n_components=n_topics,
         random_state=42,
         learning_method="batch",
+        max_iter=20,
     )
-    doc_topic = lda.fit_transform(X)
 
+    doc_topic = lda.fit_transform(X)
     feature_names = vectorizer.get_feature_names_out()
 
     topic_rows = []
     for topic_idx, topic in enumerate(lda.components_):
         top_idx = topic.argsort()[-n_words:][::-1]
         words = [feature_names[i] for i in top_idx]
-        topic_rows.append(
-            {
-                "topic_id": topic_idx,
-                "top_words": ", ".join(words),
-            }
-        )
+        topic_rows.append({
+            "topic_id": topic_idx,
+            "top_words": ", ".join(words),
+        })
 
     doc_topic_df = pd.DataFrame(doc_topic, columns=[f"topic_{i}" for i in range(n_topics)])
     doc_topic_df["dominant_topic"] = doc_topic_df[[f"topic_{i}" for i in range(n_topics)]].idxmax(axis=1)
@@ -459,56 +464,78 @@ def run_bertopic_optional(texts):
         return None, str(e)
 
 
-# -----------------------------
-# Report / ZIP
-# -----------------------------
+def pdf_safe_text(x, max_len=1200):
+    text = str(x).replace("\n", " ").replace("\r", " ")
+    text = re.sub(r"\s+", " ", text).strip()
+    text = text.encode("latin-1", "replace").decode("latin-1")
+    return text[:max_len]
+
+
+def pdf_write(pdf, text, h=6):
+    text = pdf_safe_text(text)
+    if not text:
+        text = " "
+    pdf.multi_cell(0, h, txt=text)
+
+
 def generate_pdf_report(summary_df, code_counts, group_counts=None, topic_df=None, comparison_df=None, output_file="report.pdf"):
     pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font("Arial", size=12)
 
     pdf.cell(0, 10, txt="ENVIO LLM Coding Summary Report", ln=True, align="C")
-    pdf.ln(5)
+    pdf.ln(4)
+
+    pdf.set_font("Arial", size=10)
+    pdf_write(pdf, f"Total coded segments: {len(summary_df)}")
+    pdf_write(pdf, f"Participants represented: {summary_df['participant_id'].nunique()}")
+    pdf_write(pdf, f"Source types: {', '.join(sorted(summary_df['source_type'].dropna().unique()))}")
+    pdf.ln(3)
 
     pdf.set_font("Arial", size=11)
-    pdf.cell(0, 8, txt=f"Total coded segments: {len(summary_df)}", ln=True)
-    pdf.cell(0, 8, txt=f"Participants represented: {summary_df['participant_id'].nunique()}", ln=True)
-    pdf.cell(0, 8, txt=f"Source types: {', '.join(sorted(summary_df['source_type'].dropna().unique()))}", ln=True)
-    pdf.ln(4)
-
-    pdf.cell(0, 8, txt="Overall Code Frequencies:", ln=True)
+    pdf_write(pdf, "Overall Code Frequencies:")
+    pdf.set_font("Arial", size=10)
     for code, count in code_counts.items():
-        pdf.cell(0, 7, txt=f"{code}: {int(count)}"[:110], ln=True)
+        pdf_write(pdf, f"{code}: {int(count)}")
 
     if group_counts is not None and not group_counts.empty:
-        pdf.ln(4)
-        pdf.cell(0, 8, txt="Grouped Code Frequencies by Source Type:", ln=True)
+        pdf.ln(3)
+        pdf.set_font("Arial", size=11)
+        pdf_write(pdf, "Grouped Code Frequencies by Source Type:")
+        pdf.set_font("Arial", size=9)
         for source_type, row in group_counts.iterrows():
             summary = "; ".join([f"{c}={int(v)}" for c, v in row.items()])
-            pdf.multi_cell(0, 6, txt=f"{source_type}: {summary[:400]}")
+            pdf_write(pdf, f"{source_type}: {summary}", h=5)
 
     if topic_df is not None and not topic_df.empty:
-        pdf.ln(4)
-        pdf.cell(0, 8, txt="LDA Topics:", ln=True)
+        pdf.ln(3)
+        pdf.set_font("Arial", size=11)
+        pdf_write(pdf, "Topic Modeling Results:")
+        pdf.set_font("Arial", size=9)
         for _, row in topic_df.iterrows():
-            pdf.multi_cell(0, 6, txt=f"Topic {row['topic_id']}: {row['top_words']}")
+            pdf_write(pdf, f"Topic {row['topic_id']}: {row['top_words']}", h=5)
 
     if comparison_df is not None and not comparison_df.empty:
-        pdf.ln(4)
-        pdf.cell(0, 8, txt="LLM vs Human Coding Comparison:", ln=True)
+        pdf.ln(3)
+        pdf.set_font("Arial", size=11)
+        pdf_write(pdf, "LLM vs Human Coding Agreement:")
+        pdf.set_font("Arial", size=9)
         for _, row in comparison_df.iterrows():
-            line = (
+            pdf_write(
+                pdf,
                 f"{row['code']} | Kappa={row['cohen_kappa']} | "
-                f"F1={row['f1']} | Human+={row['human_positive']} | LLM+={row['llm_positive']}"
+                f"F1={row['f1']} | Human+={row['human_positive']} | LLM+={row['llm_positive']}",
+                h=5,
             )
-            pdf.cell(0, 7, txt=line[:110], ln=True)
 
-    pdf.ln(4)
-    pdf.cell(0, 8, txt="Sample Segments:", ln=True)
+    pdf.ln(3)
+    pdf.set_font("Arial", size=11)
+    pdf_write(pdf, "Sample Coded Segments:")
+    pdf.set_font("Arial", size=8)
     for _, row in summary_df.head(8).iterrows():
-        text = str(row["text"]).replace("\n", " ")[:500]
-        pdf.multi_cell(0, 6, txt=f"Codes: {row['codes']}\nSource: {row['source_type']}\nText: {text}")
-        pdf.ln(2)
+        pdf_write(pdf, f"Codes: {row['codes']} | Source: {row['source_type']} | Text: {row['text']}", h=5)
+        pdf.ln(1)
 
     pdf.output(output_file)
     return output_file
@@ -524,9 +551,6 @@ def create_zip_from_files(file_paths):
     return buffer
 
 
-# -----------------------------
-# Init RAG
-# -----------------------------
 if "rag" not in st.session_state:
     with st.spinner("Loading RAG system..."):
         st.session_state.rag = initialize_rag(docs_dir=".", force_rebuild=False)
@@ -534,9 +558,6 @@ if "rag" not in st.session_state:
 rag = st.session_state.rag
 
 
-# -----------------------------
-# Sidebar
-# -----------------------------
 st.sidebar.header("Settings")
 
 mode = st.sidebar.selectbox("Choose mode", ["coding", "qa", "summary"])
@@ -578,9 +599,6 @@ user_id = st.sidebar.text_input("User ID", value="demo_user")
 query = st.text_area("Enter your question or coding instruction (optional)", height=120)
 
 
-# -----------------------------
-# Run
-# -----------------------------
 if st.button("Run"):
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -691,15 +709,13 @@ if st.button("Run"):
                     aggregated_output.extend(coded_segments)
                 except Exception as e:
                     st.error(f"LLM coding failed for {source_name}, chunk {c_idx}: {e}")
-                    aggregated_output.append(
-                        {
-                            "text": chunk,
-                            "codes": ["ERROR"],
-                            "rationale": str(e),
-                            "source_section": source_section,
-                            "source_type": source_kind,
-                        }
-                    )
+                    aggregated_output.append({
+                        "text": chunk,
+                        "codes": ["ERROR"],
+                        "rationale": str(e),
+                        "source_section": source_section,
+                        "source_type": source_kind,
+                    })
 
             df = make_coding_dataframe(
                 aggregated_output,
@@ -717,7 +733,6 @@ if st.button("Run"):
                 json.dump(aggregated_output, f, indent=2, ensure_ascii=False)
 
             df.to_csv(csv_file, index=False)
-
             generated_files.extend([json_file, csv_file])
             all_outputs.append(df)
 
@@ -781,6 +796,7 @@ if st.button("Run"):
                 topic_df, doc_topic_df = run_lda_topic_modeling(summary_df["text"].tolist(), n_topics=n_topics)
                 if not topic_df.empty:
                     st.dataframe(topic_df)
+
                     topic_csv = os.path.join(user_output_dir, "lda_topics.csv")
                     topic_df.to_csv(topic_csv, index=False)
                     generated_files.append(topic_csv)
@@ -807,12 +823,23 @@ if st.button("Run"):
                 try:
                     human_df = pd.read_csv(human_coding_file)
                     comparison_df = compare_llm_human(summary_df, human_df, CODEBOOK)
+
                     comparison_csv = os.path.join(user_output_dir, "llm_vs_human_comparison.csv")
                     comparison_df.to_csv(comparison_csv, index=False)
                     generated_files.append(comparison_csv)
 
                     st.subheader("LLM vs Human Coding Comparison")
                     st.dataframe(comparison_df)
+
+                    metric_df = comparison_df[
+                        comparison_df["code"] != "MACRO_AVERAGE"
+                    ][["code", "cohen_kappa", "f1"]].set_index("code")
+
+                    if not metric_df.empty:
+                        st.subheader("LLM vs Human Agreement Heatmap")
+                        fig_agree, ax_agree = plt.subplots(figsize=(8, 3))
+                        sns.heatmap(metric_df, annot=True, cmap="Blues", vmin=0, vmax=1, ax=ax_agree)
+                        st.pyplot(fig_agree)
 
                     with open(comparison_csv, "rb") as f:
                         st.download_button(
@@ -877,16 +904,14 @@ if st.button("Run"):
 
     if show_debug:
         st.subheader("Session / Active Profile")
-        st.json(
-            {
-                "user_id": user_id,
-                "output_dir": user_output_dir,
-                "profile": profile,
-                "merge_related_files": merge_related_files,
-                "use_rag_context": use_rag_context,
-                "uploaded_file_count": len(uploaded_files or []),
-                "has_url_input": bool(url_input.strip()),
-                "lda_enabled": run_lda,
-                "bertopic_enabled": run_bertopic,
-            }
-        )
+        st.json({
+            "user_id": user_id,
+            "output_dir": user_output_dir,
+            "profile": profile,
+            "merge_related_files": merge_related_files,
+            "use_rag_context": use_rag_context,
+            "uploaded_file_count": len(uploaded_files or []),
+            "has_url_input": bool(url_input.strip()),
+            "lda_enabled": run_lda,
+            "bertopic_enabled": run_bertopic,
+        })
