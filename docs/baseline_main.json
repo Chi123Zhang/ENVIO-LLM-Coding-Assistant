@@ -1,0 +1,33 @@
+{
+  "main_commit": "f716bb4f93cc5854adb004d4b4e239be84cd1184",
+  "original_files_sha256": {
+    "README.md": "5fa9eccb061562dd7afed48b99a83b4f511c4492ea920d4ef6d48757835f0ced",
+    "Research Background": "066493b3a95b12eae0e6350e6acd23fa8e7e18dc2b044371ce3ad69f38d58483",
+    "app.py": "bb1bb6e08cff3abd48e0bd5dc0533b5f35f42ae26dc9b022b461f316a03ccd05",
+    "background_memory.py": "138f2a058626c76a906ca46e26d354e17ecbbb03d756aee1696a9d4499010395",
+    "evaluation/llm_outputs/001S_interview_001S_Qual_Interview_2025-05-14_1_.pdf_coding.csv": "ec2a52a4191a68b76025c6dbc8260fde843261b5eaf5c5510b46c05aea881c4b",
+    "evaluation/llm_outputs/001S_interview_001S_Qual_Interview_2025-05-14_1_.pdf_coding.json": "c26a55681cc605770d4cead984ee680af33c63b751964208ac4a01f3feed3ed0",
+    "evaluation/llm_outputs/001S_interview_001S_Qual_Interview_2025-05-14_1_.pdf_no_rag_coding.csv": "0045efcd0f1c0546afb8c8bfe7369ab712bf4ab20ac5ded1e4ded45595daa3a2",
+    "evaluation/llm_outputs/001S_interview_001S_Qual_Interview_2025-05-14_1_.pdf_no_rag_coding.json": "e32a8d14f1a2ad7b3a946748453c59ab5dbda0b62b94451373b23ebe4a6dfe80",
+    "evaluation/llm_outputs/README.md": "613b718a2636142dbee526b93db0c0dabcdfb218df005b0b402e88339dbdea0d",
+    "evaluation/llm_outputs/batch_summary_coding.csv": "ec2a52a4191a68b76025c6dbc8260fde843261b5eaf5c5510b46c05aea881c4b",
+    "evaluation/llm_outputs/batch_summary_no_rag_coding.csv": "0045efcd0f1c0546afb8c8bfe7369ab712bf4ab20ac5ded1e4ded45595daa3a2",
+    "evaluation/llm_vs_human/README.md": "2aa50253c7d1e03ea1338f9fc0f6398e0300a1aadd1e1769fea587f20b019270",
+    "evaluation/llm_vs_human/llm_vs_human_comparison.csv": "334c486499591150e9490732f3b0f938f9d26fdff857785711bb4dc02456632c",
+    "evaluation/llm_vs_human/no_rag_vs_human_comparison.csv": "f800785e8b95ef0c095a59619e9062838c8e87ba109d2809931798f6d67524f9",
+    "evaluation/llm_vs_human/rag_vs_no_rag_macro_comparison.csv": "672924c9c93f070b2c0bcda8ec259c296951a478ff8c56f17dbf0dbb9e8621c1",
+    "evaluation/role_based_outputs/README.md": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "evaluation/role_based_outputs/business views": "25b4ac10b86098908e4cccdf0e9039e2fb2f873ad5a2b359fd555b265283470a",
+    "evaluation/role_based_outputs/engineer views": "e8771102f4b7d53b5807d7c4d6fc47078d299ce72db75e25f41143ecace537c8",
+    "evaluation/role_based_outputs/product manager views": "e61d31459542ec0a45e368816117a443422538cccbaf4dabffbb54f9a6885a66",
+    "evaluation/topic_modeling/README.md": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "evaluation/topic_modeling/lda_document_topics.csv": "80d7337098775d08b5b2d88e6eba69962bebd52fcce28ab63e1af82d92b99158",
+    "evaluation/topic_modeling/lda_topics.csv": "e475589c2da483aff98b5eb84a31e53f113e364974876b2ef2500312dd5acc45",
+    "evaluation/topic_modeling/qualitative_thematic_summary.txt": "0e11f0dc924694b1cb9e2a928db015669178320b04ce75bef00f14862b2f3094",
+    "expression_layer.py": "8b02400bf6cc9b82fdf271c8bad88e14f40804c6fdb14b778074749895c1dba1",
+    "llm_batch_coding.py": "840371b6bc8462e0b52413ec3480ae1c3052df3500de688e3162d1ed2d4d0917",
+    "query_orchestrator.py": "5f6f86030898a6002ec66f43e0f862e78737d92239b6cf5940dc339583b68f41",
+    "rag_system.py": "f6728831f92ee1f4f1a3d4683d43b66fb020e446023f5ec48a949534716247fb",
+    "requirements.txt": "9ee9a03e3a2a7534acf1a04063a6e5f4b56f073d8fe5f94893810b86758df2e1"
+  }
+}

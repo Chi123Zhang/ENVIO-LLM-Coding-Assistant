@@ -33,6 +33,9 @@ except Exception:
 st.set_page_config(page_title="ENVIO LLM Coding Assistant", layout="wide")
 st.title("ENVIO LLM Coding Assistant")
 st.caption("Document-grounded LLM coding, topic modeling, and LLM-human coding comparison for ENVIO transcripts")
+st.sidebar.page_link("app.py", label="ENVIO Interview Coding")
+st.sidebar.page_link("pages/01_ORCCA_Research_Audit.py", label="ORCCA Research Audit")
+st.sidebar.caption("ENVIO workspace: authorized interview materials only. Do not upload ORCCA research files to this public page.")
 
 
 CODEBOOK = [
