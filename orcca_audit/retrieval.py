@@ -82,6 +82,10 @@ def explain_with_external_model(query, retrieval_result, model, client=None):
         raise AuditError("Retrieval must complete before generation.")
     if not model or not isinstance(model, str):
         raise AuditError("An operator must configure an exact model identifier.")
+    # Rebuild the outbound payload from committed evidence, rather than forwarding
+    # arbitrary metadata attached to a matching synthetic text/hash by a caller.
+    canonical = {d["sha256"]: d for d in public_documents()}
+    docs = [canonical[d["sha256"]] for d in docs]
     if client is None:
         from openai import OpenAI
         client = OpenAI()

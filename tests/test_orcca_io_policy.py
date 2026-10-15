@@ -90,6 +90,24 @@ def test_reference_labels_cannot_be_indexed():
         retrieve("window", docs)
 
 
+def test_external_demo_never_forwards_caller_metadata(monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setenv("ORCCA_ENABLE_EXTERNAL_LLM", "1")
+    docs = public_documents()
+    docs[0]["caller_private_metadata"] = "SYNTHETIC_PRIVATE_SENTINEL"
+    client = Mock()
+    response = {"status": "answered", "answer": "Synthetic explanation.", "citations": [
+        {"chunk_id": docs[0]["chunk_id"], "quote": "This is a fictional software demonstration"}]}
+    client.chat.completions.create.return_value = SimpleNamespace(choices=[
+        SimpleNamespace(message=SimpleNamespace(content=json.dumps(response)))])
+    result = explain_with_external_model(PUBLIC_QUESTIONS[0],
+        {"status": "retrieved_evidence_unreviewed", "citations": docs}, "test-model", client)
+    prompt = client.chat.completions.create.call_args.kwargs["messages"][-1]["content"]
+    assert "SYNTHETIC_PRIVATE_SENTINEL" not in prompt
+    assert "caller_private_metadata" not in prompt
+    assert result["status"] == "model_generated_unreviewed_citation_strings_verified"
+
+
 def test_exports_are_memory_only_and_escape_spreadsheet_formulas():
     blob = report_bundle({"test": [{"status": "needs_review", "value": "=HYPERLINK(1)"}]}, "synthetic_public_demo")
     with zipfile.ZipFile(BytesIO(blob)) as z:

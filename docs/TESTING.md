@@ -5,7 +5,7 @@ FAISS 1.15.1, openpyxl 3.1.5, sentence-transformers 6.1.0.
 The complete existing requirements installed in an isolated environment.
 `python -m pip check`: no broken requirements.
 
-`python -m pytest -q`: **29 passed**, including:
+`python -m pytest -q`: **30 passed**, including:
 
 | Area | Actual checks |
 |---|---|
@@ -17,7 +17,7 @@ The complete existing requirements installed in an isolated environment.
 | Full page | Existing app entry renders, all original modes remain, native page switch and return work; new page has five tabs |
 | Privacy / uploads | Public ORCCA constructs no upload widget; both server flags needed locally; injected uploaded-file payloads run all new tabs; incomplete inputs and invalid specs visibly stop |
 | Deterministic audit | Unique keys, annual outside-window bounds, incomplete year, zero/suppression/missing states, lag history/unknowns, exact dictionary mapping, duplicate lookup rejection |
-| Retrieval | Actual BM25 source text/locators/hashes; empty/no-match cases, reference-label exclusion, quote mismatch, external-model permission and explicit hybrid failure |
+| Retrieval | Actual BM25 source text/locators/hashes; empty/no-match cases, reference-label exclusion, quote mismatch, external-model permission, canonical synthetic-only outbound metadata and explicit hybrid failure |
 | Hybrid adapter | Actual original retrieve algorithm plus real FAISS, fake embeddings/reranker; small corpus has no padded negative/duplicate indices |
 
 Browser checks on the running full local app: original landing page, ORCCA native
