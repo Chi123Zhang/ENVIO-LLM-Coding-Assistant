@@ -1,5 +1,12 @@
 # Actual validation and limits
 
+The following records the initial 2026-10-15 validation. The completed browser
+upload acceptance, real cached-weight hybrid smoke test, session-clear fix and
+**32 passing tests** from 2026-10-17 are documented in
+[BROWSER_ACCEPTANCE.md](BROWSER_ACCEPTANCE.md), which supersedes the earlier
+incomplete-upload and untested-real-weight limitations below. Real provider
+generation and production deployment remain untested.
+
 Local macOS / Python 3.12.14; Streamlit 1.66.0, pandas 3.0.6, numpy 2.5.4,
 FAISS 1.15.1, openpyxl 3.1.5, sentence-transformers 6.1.0.
 The complete existing requirements installed in an isolated environment.

@@ -35,9 +35,13 @@ def render():
         if private else "Public Demo · Every bundled value and document is synthetic. Do not upload ORCCA research data to this public app.")
     st.warning("Verified source checks, candidate-rule matches, model explanations and unknowns are different evidence levels. This app does not reproduce H2a or establish improved RAG accuracy.")
     if st.button("Clear this audit session", key="orcca_clear"):
+        upload_epoch = st.session_state.get("orcca_upload_epoch", 0) + 1
         for key in list(st.session_state):
             if key.startswith("orcca_") and key != "orcca_clear":
                 del st.session_state[key]
+        # A new widget identity also clears the browser's selected filenames.
+        # Deleting server state alone leaves stale file chips in Streamlit.
+        st.session_state["orcca_upload_epoch"] = upload_epoch
         st.rerun()
     data = demo_data()
     classification = "synthetic_public_demo"
@@ -56,7 +60,9 @@ def render():
             ("dictionary", "Data dictionary workbook (optional)", ["xlsx"]),
             ("specs", "Two model specifications JSON (optional)", ["json"]),
             ("evidence", "Evidence PDF or text (optional)", ["pdf", "txt", "md"])]:
-            supplied[role] = st.file_uploader(label, type=types, key="orcca_upload_" + role)
+            epoch = st.session_state.get("orcca_upload_epoch", 0)
+            supplied[role] = st.file_uploader(label, type=types,
+                key="orcca_upload_" + role + (f"_{epoch}" if epoch else ""))
         if any(supplied.values()):
             required = ["panel", "monthly", "annual"]
             if not all(supplied[k] is not None for k in required):

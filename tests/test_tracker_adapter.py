@@ -36,3 +36,21 @@ def test_adapter_retains_exact_versioned_fields_and_dictionary_locations():
     sheets["Sheet1"] = pd.concat([sheets["Sheet1"], sheets["Sheet1"]])
     with pytest.raises(AuditError, match="unique"):
         tracker_workbooks_to_tidy(sheets, dictionary)
+
+
+def test_complete_browser_workbooks_parse_and_replay(tmp_path):
+    from build_browser_fixtures import build
+    from orcca_audit.io import read_table, read_workbook
+    from orcca_audit.engine import verify_exposures, audit_consistency
+    build(tmp_path)
+    def read(name, **kwargs):
+        return read_table((tmp_path / name).read_bytes(), name, **kwargs)
+    tracker, refs = tracker_workbooks_to_tidy(
+        read_workbook((tmp_path / "synthetic_tracker.xlsx").read_bytes(), positional_sheets=("Sheet1",)),
+        read("synthetic_dictionary.xlsx", sheet="ORCCAT_DD"), "synthetic_tracker.xlsx")
+    result = verify_exposures(read("panel.csv"), tracker)
+    assert result["summary"]["checks"] == result["summary"]["candidate_matches"] == 72
+    assert result["summary"]["uncertain_or_mismatched"] == 0
+    assert refs.dictionary_file.eq("synthetic_dictionary.xlsx").all()
+    result = audit_consistency(read("panel_changed.csv"), read("monthly.csv"), read("annual.csv"))
+    assert result["summary"]["verified_rows"] == 17
