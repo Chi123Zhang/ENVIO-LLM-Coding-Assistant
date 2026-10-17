@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+.env.*
+.streamlit/secrets.toml
+outputs/
+uploads/
+raw/
+private/
+*.db
+*.sqlite*
+*faiss*.index
+*faiss*.pkl
+techmpower_index/
