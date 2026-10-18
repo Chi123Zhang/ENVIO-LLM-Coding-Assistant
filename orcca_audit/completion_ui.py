@@ -118,7 +118,7 @@ def render():
         eligible = {x["issue_id"]: x for x in issues if x["eligible"]}
         if eligible:
             selected = st.selectbox("选择待补全项", list(eligible), format_func=lambda k:
-                " / ".join(str(eligible[k][x]) for x in ("county", "month", "menu", "slot", "field")), key="completion_issue")
+                " / ".join(str(eligible[k][x]) for x in ("county", "month", "menu", "slot", "field")), key="completion_issue_" + run_id)
             issue = eligible[selected]
             backend = st.selectbox("证据检索方式", ["bm25", "hybrid"], key="completion_backend")
             st.caption("先按县、事件适用月份、策略及版本精确筛选，再复用 ENVIO 检索。自动提取只接受原文独立行中的明确字段赋值；自由叙述命中后仍可能无法确定。")
@@ -162,7 +162,7 @@ def render():
         candidates = st.session_state["completion_candidates"]
         if candidates:
             chosen = st.selectbox("待人工判定的候选", list(candidates), format_func=lambda k:
-                candidates[k]["issue_id"] + " / " + candidates[k]["kind"] + " / " + k[:8], key="completion_review")
+                candidates[k]["issue_id"] + " / " + candidates[k]["kind"] + " / " + k[:8], key="completion_review_" + run_id)
             st.json(candidates[chosen])
             with st.form("completion_review_form", clear_on_submit=False):
                 reviewer = st.text_input("标注者／复核者", key="completion_reviewer")

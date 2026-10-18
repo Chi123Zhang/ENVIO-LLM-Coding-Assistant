@@ -128,6 +128,8 @@ def test_completion_public_ui_end_to_end_without_uploads(monkeypatch):
     at.switch_page("pages/03_ORCCA_Evidence_Completion.py").run()
     assert not at.exception and not at.get("file_uploader")
     assert len(at.tabs) == 4 and at.radio(key="completion_mode").options == ["模拟练习"]
+    initial_run = at.session_state["completion_run"]
+    assert at.selectbox(key="completion_issue_" + initial_run)
     at.button(key="completion_retrieve").click().run()
     assert len(at.session_state["completion_candidates"]) == 1
     cid = next(iter(at.session_state["completion_candidates"]))
@@ -137,5 +139,19 @@ def test_completion_public_ui_end_to_end_without_uploads(monkeypatch):
     next(b for b in at.button if b.label == "保存本次人工判定").click().run()
     assert not at.exception and len(at.session_state["completion_decisions"]) == 1
     assert any("人工判定已保存" in x.value for x in at.success)
+    # Changing the source must also change widget identity, not merely delete
+    # session keys: real browsers can retain an old selectbox display otherwise.
+    from orcca_audit import completion_ui
+    original_inputs = completion_ui.synthetic_inputs
+    def replaced_inputs():
+        raw, ev = original_inputs()
+        raw["county"] = "SYNTHETIC_REPLACEMENT"
+        return raw, ev
+    monkeypatch.setattr(completion_ui, "synthetic_inputs", replaced_inputs)
+    at.run()
+    assert at.session_state["completion_run"] != initial_run
+    assert at.session_state["completion_candidates"] == {} and at.session_state["completion_decisions"] == {}
+    selection = at.selectbox(key="completion_issue_" + at.session_state["completion_run"])
+    assert all("SYNTHETIC_REPLACEMENT" in option for option in selection.options)
     at.switch_page("app.py").run()
     assert not at.exception and at.title[0].value == "ENVIO LLM Coding Assistant"
