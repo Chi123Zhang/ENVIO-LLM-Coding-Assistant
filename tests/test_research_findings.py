@@ -129,8 +129,20 @@ def test_findings_page_retrieves_raw_evidence_and_invalidates_stale_results(monk
     write_fixture(tmp_path, bundle)
     at.run()
     assert not any("检索状态" in str(x.value) for x in at.markdown)
+    at.text_input(key="findings_query_Q").set_value("replacement").run()
+    at.button(key="findings_retrieve").click().run()
+    assert "findings_result" in at.session_state
+    at.selectbox(key="findings_backend").select("hybrid").run()
+    at.session_state["envio_reset_sentinel"] = "preserve unrelated state"
     at.button(key="findings_reset").click().run()
     assert not at.exception
     assert "findings_result" not in at.session_state
+    assert "findings_fingerprint" not in at.session_state
+    assert at.text_input(key="findings_query_Q").value == "unknown status"
+    assert at.selectbox(key="findings_backend").value == "bm25"
+    assert at.session_state["envio_reset_sentinel"] == "preserve unrelated state"
+    assert any("证据查询已重置" in x.value for x in at.success)
+    assert any("SYNTHETIC status remains unknown" in x.value for x in at.markdown)
+    assert not any("检索状态" in str(x.value) for x in at.markdown)
     at.switch_page("app.py").run()
     assert not at.exception and at.title[0].value == "ENVIO LLM Coding Assistant"

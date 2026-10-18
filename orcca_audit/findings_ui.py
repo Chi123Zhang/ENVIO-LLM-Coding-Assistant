@@ -46,7 +46,20 @@ def render():
         for key in list(st.session_state):
             if key.startswith("findings_") and key != "findings_reset":
                 del st.session_state[key]
+        # Explicit values also reset existing browser widgets; deleting keys alone
+        # can let Streamlit restore their previous frontend values.
+        for question in bundle["questions"]:
+            st.session_state["findings_query_" + question["question_id"]] = question["query"]
+        if bundle["questions"]:
+            st.session_state["findings_question"] = bundle["questions"][0]["question_id"]
+        else:
+            st.session_state["findings_query"] = ""
+        st.session_state["findings_backend"] = "bm25"
+        st.session_state["findings_reset_notice"] = True
         st.rerun()
+    st.caption("仅重置所选问题、检索词、检索方式和检索结果；研究发现及来源材料会保留。")
+    if st.session_state.pop("findings_reset_notice", False):
+        st.success("证据查询已重置：问题、检索词和检索方式已恢复默认，检索结果已清除。研究发现与来源材料未删除。")
     tabs = st.tabs(["研究发现", "证据检索与解释", "H3–H5 材料准备", "RAG 能力与评价", "报告导出"])
     with tabs[0]:
         st.write("每条结论列出支持范围和限制；展开后可查看原文、程序计算记录及来源定位。")
