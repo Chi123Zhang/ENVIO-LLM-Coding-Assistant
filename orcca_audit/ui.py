@@ -30,6 +30,8 @@ def render():
     st.caption("Source-linked data and measurement review · No model fitting")
     st.sidebar.page_link("app.py", label="ENVIO Interview Coding")
     st.sidebar.page_link("pages/01_ORCCA_Research_Audit.py", label="ORCCA Research Audit")
+    st.sidebar.page_link("pages/02_ORCCA_Research_Findings.py", label="Research findings")
+    st.sidebar.page_link("pages/03_ORCCA_Evidence_Completion.py", label="Evidence completion")
     private = private_uploads_allowed()
     st.info("Local private mode: uploads stay in this session; external generation for uploaded research evidence is disabled."
         if private else "Public Demo · Every bundled value and document is synthetic. Do not upload ORCCA research data to this public app.")
@@ -118,7 +120,8 @@ def render():
             a.metric("Panel rows", summary["panel_rows"])
             b.metric("Counties", summary["counties"])
             c.metric("Rows matching supplied sources", summary["verified_rows"])
-            st.json(summary)
+            with st.expander("Check details"):
+                st.json(summary)
             _show_rows(results["consistency"]["annual_windows"])
             st.caption("Annual compatibility includes outside-window months. An impossible partial-window=annual equality does not prove the original model used that equality.")
             with st.expander("Row-level source checks and anomalies"):
@@ -133,7 +136,13 @@ def render():
         else:
             try:
                 results["exposures"] = verify_exposures(data["panel"], data["tracker"])
-                st.json(results["exposures"]["summary"])
+                summary = results["exposures"]["summary"]
+                a, b, c = st.columns(3)
+                a.metric("Lag checks", summary["checks"])
+                b.metric("Candidate matches", summary["candidate_matches"])
+                c.metric("Review items", summary["uncertain_or_mismatched"])
+                with st.expander("Check details"):
+                    st.json(summary)
                 st.caption("L1 uses t−1; L13 averages t−1,t−2,t−3. A permissive candidate match is not a confirmed status or original algorithm.")
                 _show_rows(results["exposures"]["lag_checks"])
                 st.subheader("Needs human review")
