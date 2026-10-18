@@ -12,37 +12,43 @@ from .retrieval import retrieve
 
 
 def _evidence(doc):
-    kind = {"original_excerpt": "原始材料摘录", "deterministic_receipt": "程序计算记录",
-            "approved_summary": "经批准公开的二级摘要"}[doc["evidence_kind"]]
+    kind = {"original_excerpt": "Source excerpt", "deterministic_receipt": "Calculation record",
+            "approved_summary": "Approved public summary"}[doc["evidence_kind"]]
     st.markdown(f"**{doc['source_file']}** · {kind}")
-    st.caption(doc.get("locator", f"page {doc.get('page')}, lines {doc['line_start']}–{doc['line_end']}"))
+    page = f"Page {doc['page']}, " if doc.get("page") else ""
+    st.caption(f"{page}lines/rows {doc['line_start']}–{doc['line_end']}")
     st.code(doc["text"], language=None)
-    st.caption("摘录 SHA-256: " + doc["sha256"])
+    with st.expander("Exact source reference and checksum"):
+        st.write(doc.get("locator", "See the page and row reference above."))
+        st.code(doc["sha256"], language=None)
 
 
 def render():
     st.title("ORCCA Research Findings")
-    st.caption("从真实材料发现了什么 · 原始证据与计算记录 · H3–H5 数据准备")
+    st.caption("Findings from the supplied materials, with evidence and open questions.")
     st.sidebar.page_link("app.py", label="ENVIO Interview Coding")
-    st.sidebar.page_link("pages/01_ORCCA_Research_Audit.py", label="模拟流程与数据核查")
-    st.sidebar.page_link("pages/02_ORCCA_Research_Findings.py", label="真实研究发现与证据")
+    st.sidebar.page_link("pages/01_ORCCA_Research_Audit.py", label="Data audit")
+    st.sidebar.page_link("pages/02_ORCCA_Research_Findings.py", label="Research findings")
+    st.sidebar.page_link("pages/03_ORCCA_Evidence_Completion.py", label="Evidence completion")
     private = private_uploads_allowed()
     path = os.environ.get("ORCCA_FINDINGS_BUNDLE")
     if not path:
-        st.info("尚未配置可展示的真实研究审查摘要。此页不会用模拟结果代替真实发现。")
-        st.write("模拟演示展示工具如何运行；研究发现需要经核查的材料、来源和研究者复核。公开研究摘要须单独确认后发布。")
+        st.info("No research review is configured. Demo results are not used as study findings.")
+        st.write("Research summaries require source checks and researcher review before publication.")
         return
     try:
         bundle, digest = load_bundle(path, private_mode=private,
             approved_sha256=os.environ.get("ORCCA_PUBLIC_FINDINGS_SHA256"))
     except (AuditError, OSError) as exc:
-        st.error(str(exc) if isinstance(exc, AuditError) else "研究摘要文件无法读取；没有替代或加载其他数据。")
+        st.error(str(exc) if isinstance(exc, AuditError) else "The research review could not be read. No other data were substituted.")
         return
-    st.info("本地研究审查：包含真实材料及原文摘录，仅在本机查看。" if private else
-            "公开研究审查摘要：检索范围仅限已批准公开的摘要，原始研究材料没有发布。")
-    st.caption(f"材料日期：{bundle.get('review_date', '未提供')} · 审查包 SHA-256: {digest}")
-    st.warning("下列内容是数据与方法审查发现。候选计算相容不等于原算法正确；未复现 H2a，也未检验 H3–H5 的效应。")
-    if st.button("重置证据查询", key="findings_reset"):
+    st.info("Local research workspace. Source excerpts stay on this computer." if private else
+            "Public summary. Search covers approved summaries only; original study files are not published.")
+    st.caption(f"Reviewed {bundle.get('review_date', 'date not supplied')}")
+    with st.expander("Review version"):
+        st.code(digest, language=None)
+    st.warning("These are data and methods checks. H2a has not been reproduced, and H3–H5 have not been tested.")
+    if st.button("Reset search", key="findings_reset"):
         for key in list(st.session_state):
             if key.startswith("findings_") and key != "findings_reset":
                 del st.session_state[key]
@@ -57,42 +63,43 @@ def render():
         st.session_state["findings_backend"] = "bm25"
         st.session_state["findings_reset_notice"] = True
         st.rerun()
-    st.caption("仅重置所选问题、检索词、检索方式和检索结果；研究发现及来源材料会保留。")
+    st.caption("Resets the question, query, search method and results. Findings and sources stay available.")
     if st.session_state.pop("findings_reset_notice", False):
-        st.success("证据查询已重置：问题、检索词和检索方式已恢复默认，检索结果已清除。研究发现与来源材料未删除。")
-    tabs = st.tabs(["研究发现", "证据检索与解释", "H3–H5 材料准备", "RAG 能力与评价", "报告导出"])
+        st.success("Search reset. Defaults restored and previous results cleared. Findings and sources are unchanged.")
+    tabs = st.tabs(["Findings", "Evidence search", "H3–H5 readiness", "Methods and evaluation", "Export"])
     with tabs[0]:
-        st.write("每条结论列出支持范围和限制；展开后可查看原文、程序计算记录及来源定位。")
+        st.write("Each finding includes its basis, limits and supporting records.")
         for item in bundle["findings"]:
             st.subheader(item["finding_id"] + " · " + item["title"])
             st.caption(LEVELS[item["level"]])
             st.write(item["statement"])
-            st.markdown("**如何得到：** " + item["verification_method"])
-            st.markdown("**仍不能断言：** " + item["limitations"])
+            st.markdown("**Basis:** " + item["verification_method"])
+            st.markdown("**Limits:** " + item["limitations"])
             if item.get("metrics"):
                 st.dataframe(pd.DataFrame(item["metrics"]), hide_index=True)
-            with st.expander("查看这条发现的来源与证据", expanded=False):
+            with st.expander("Sources and supporting records", expanded=False):
                 for doc in evidence_for(item, bundle):
                     _evidence(doc)
     retrieval_result = None
     with tabs[1]:
         questions = {q["question_id"]: q for q in bundle["questions"]}
         if questions:
-            selected = st.selectbox("选择研究问题", list(questions),
+            selected = st.selectbox("Review question", list(questions),
                 format_func=lambda key: questions[key]["question"], key="findings_question")
             q = questions[selected]
-            st.caption("可回答性：" + {"answerable": "可回答", "partial": "部分可回答",
-                "insufficient_evidence": "证据不足"}[q["status"]])
-            st.markdown("**预先整理的审查说明（待研究者复核）：**")
+            st.caption("Evidence coverage: " + {"answerable": "Supported within this review", "partial": "Partly supported",
+                "insufficient_evidence": "Insufficient evidence"}[q["status"]])
+            st.markdown("**Review note — pending researcher confirmation**")
             st.write(q["review_answer"])
-            st.caption("本页未调用生成模型。说明文本预先编写，数值来自程序核查，内容仍须研究者复核；说明文本不进入检索索引。")
-            query = st.text_input("证据检索词（英文或字段名，可编辑）", value=q["query"],
-                key="findings_query_" + selected)
+            st.caption("This note was prepared in advance with AI assistance and needs researcher review. Search retrieves source records; it does not generate this answer. Review notes are excluded from the index.")
+            query_key = "findings_query_" + selected
+            st.session_state.setdefault(query_key, q["query"])
+            query = st.text_input("Search terms or field names", key=query_key)
         else:
-            query = st.text_input("证据检索词（英文或字段名）", key="findings_query")
-        backend = st.selectbox("检索方式", ["bm25", "hybrid"], key="findings_backend")
+            query = st.text_input("Search terms or field names", key="findings_query")
+        backend = st.selectbox("Search method", ["bm25", "hybrid"], key="findings_backend")
         fingerprint = retrieval_fingerprint(digest, query, backend)
-        if st.button("检索支持材料", key="findings_retrieve"):
+        if st.button("Find supporting records", key="findings_retrieve"):
             try:
                 result = retrieve(query, bundle["documents"], backend)
             except Exception:
@@ -102,40 +109,52 @@ def render():
         if st.session_state.get("findings_fingerprint") == fingerprint:
             retrieval_result = st.session_state.get("findings_result")
             if retrieval_result:
-                st.write("检索状态：", retrieval_result["status"])
+                labels = {"retrieved_evidence_unreviewed": "Supporting records found. Check their relevance before use.",
+                    "hybrid_unavailable_no_fallback": "Hybrid search is unavailable. No fallback was used.",
+                    "empty_index": "No source records are indexed.",
+                    "retrieval_failed": "No matching records found.",
+                    "unsupported_query_language_or_empty": "Enter English search terms or a field name.",
+                    "retrieval_error_no_fallback": "Search failed. No fallback was used."}
+                st.write("Search status:", labels.get(retrieval_result["status"], retrieval_result["status"].replace("_", " ")))
                 if retrieval_result["status"] != "retrieved_evidence_unreviewed":
-                    st.warning("本次没有成功取得证据。不会将检索失败标为 RAG 成功，也不会自动生成答案。")
+                    st.warning("No evidence was retrieved. No fallback answer was generated.")
                 for doc in retrieval_result.get("citations", []):
                     _evidence(doc)
-        st.info("检索命中不保证证据支持结论。该页面没有外部模型调用、自动补数或因果结论生成。")
+        st.info("Check whether each passage supports the claim. This page does not call an external LLM or infer causal effects.")
     with tabs[2]:
         for h in bundle["hypotheses"]:
             st.subheader(h["hypothesis"] + " · " + h["definition"])
-            st.markdown("**已有材料：** " + h["available"])
-            st.markdown("**仍缺：** " + h["missing"])
-            st.markdown("**下一步：** " + h["next_step"])
-        st.caption("材料可得性不是统计识别保证。没有县—时间定位的文本不能自动转成月度变量。")
+            st.markdown("**Available:** " + h["available"])
+            st.markdown("**Missing:** " + h["missing"])
+            st.markdown("**Next step:** " + h["next_step"])
+        st.caption("Text needs a defensible county and applicable date before it can become a monthly variable.")
     with tabs[3]:
-        st.subheader("当前实现了哪些能力")
+        st.subheader("How the findings were produced")
+        st.write("Counts and consistency results come from Python checks. Design comparisons come from reviewing the supplied documents. Retrieval helps locate supporting passages; it does not establish the findings or fill unknown values by itself.")
+        st.subheader("What the workflow does")
         st.dataframe(pd.DataFrame([
-            {"能力": "来源追溯", "当前状态": "显示文件、页码/行号/字段及摘录哈希"},
-            {"能力": "跨材料核查", "当前状态": "并排展示原始材料、确定性计算及其限制"},
-            {"能力": "可见的证据缺口", "当前状态": "未知、待复核和检索失败单独标注"},
-            {"能力": "LLM 生成", "当前状态": "本页未启用；现有审查解释不是模型生成"},
-            {"能力": "准确率与节省时间", "当前状态": "尚未完成真实人工评价，没有提升结论"},
+            {"Task": "Source tracing", "Current implementation": "File, page, row or field references accompany source excerpts."},
+            {"Task": "Cross-file checks", "Current implementation": "Source records and reproducible checks are shown with their limits."},
+            {"Task": "Evidence gaps", "Current implementation": "Unknowns, review items and failed searches are reported separately."},
+            {"Task": "LLM generation", "Current implementation": "Disabled here. Review notes are prepared in advance, not generated during search."},
+            {"Task": "Accuracy and time", "Current implementation": "Human evaluation is incomplete; no improvement has been measured."},
         ]), hide_index=True)
         evaluation = bundle.get("evaluation", {})
-        st.write("当前人工评价准备：", evaluation)
-        st.write("比较规则/字典、No-RAG LLM、RAG LLM。先由两名研究者独立标注，再保留分歧与裁决；正式测试按县或文档分组，并排除答案泄漏。")
-        st.caption("开发试点数量不等于已标注样本数。软件测试、检索成功与研究性能分别报告。")
+        a, b = st.columns(2)
+        a.metric("Pilot cases", evaluation.get("development_pilot_cases", 0))
+        b.metric("Human-labelled cases", evaluation.get("human_labelled_cases", 0))
+        with st.expander("Evaluation record"):
+            st.json(evaluation)
+        st.write("Planned comparison: rules, an LLM without retrieval, and an LLM with retrieval. Two independent reviewers will label cases and resolve disagreements. Test splits should separate counties or documents; reference answers must stay out of the index.")
+        st.caption("Pilot size is not the number of labelled cases. Software checks and research performance are reported separately.")
     with tabs[4]:
         exported = {"research_findings": bundle["findings"], "hypotheses": bundle["hypotheses"],
             "evidence_excerpts": bundle["documents"],
             "sources": bundle["sources"], "human_evaluation": bundle.get("evaluation", {})}
         if retrieval_result:
             exported["retrieval"] = retrieval_result
-        st.download_button("下载研究发现与当前证据记录", report_bundle(exported, bundle["classification"],
+        st.download_button("Download findings and evidence", report_bundle(exported, bundle["classification"],
             {"review_date": bundle.get("review_date"), "bundle_sha256": digest,
              "audit_run": bundle.get("audit_run", {})}),
             "orcca_research_findings.zip", "application/zip", key="findings_download")
-        st.caption("本地报告可含研究标识和摘录，请按研究材料管理；原始文件没有被修改。")
+        st.caption("Local reports may contain study identifiers and excerpts. Original files are unchanged.")

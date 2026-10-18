@@ -102,7 +102,7 @@ def test_public_page_does_not_substitute_demo_or_show_private_bundle(monkeypatch
     at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=90).run()
     at.switch_page("pages/02_ORCCA_Research_Findings.py").run()
     assert not at.exception
-    assert any("不会用模拟结果代替" in x.value for x in at.info)
+    assert any("Demo results are not used" in x.value for x in at.info)
     assert not at.get("file_uploader") and not at.tabs
     monkeypatch.setenv("ORCCA_FINDINGS_BUNDLE", str(write_fixture(tmp_path, fixture())))
     at.run()
@@ -121,14 +121,14 @@ def test_findings_page_retrieves_raw_evidence_and_invalidates_stale_results(monk
     at.switch_page("pages/02_ORCCA_Research_Findings.py").run()
     assert not at.exception and len(at.tabs) == 5
     at.button(key="findings_retrieve").click().run()
-    assert any("retrieved_evidence_unreviewed" in str(x.value) for x in at.markdown)
+    assert any("Supporting records found" in str(x.value) for x in at.markdown)
     assert any("SYNTHETIC protocol" in x.value for x in at.code)
     assert not any("Generate" in b.label for b in at.button)
     bundle["documents"][0]["text"] = "SYNTHETIC replacement protocol."
     bundle["documents"][0]["sha256"] = hashlib.sha256(bundle["documents"][0]["text"].encode()).hexdigest()
     write_fixture(tmp_path, bundle)
     at.run()
-    assert not any("检索状态" in str(x.value) for x in at.markdown)
+    assert not any("Search status" in str(x.value) for x in at.markdown)
     at.text_input(key="findings_query_Q").set_value("replacement").run()
     at.button(key="findings_retrieve").click().run()
     assert "findings_result" in at.session_state
@@ -141,8 +141,8 @@ def test_findings_page_retrieves_raw_evidence_and_invalidates_stale_results(monk
     assert at.text_input(key="findings_query_Q").value == "unknown status"
     assert at.selectbox(key="findings_backend").value == "bm25"
     assert at.session_state["envio_reset_sentinel"] == "preserve unrelated state"
-    assert any("证据查询已重置" in x.value for x in at.success)
+    assert any("Search reset" in x.value for x in at.success)
     assert any("SYNTHETIC status remains unknown" in x.value for x in at.markdown)
-    assert not any("检索状态" in str(x.value) for x in at.markdown)
+    assert not any("Search status" in str(x.value) for x in at.markdown)
     at.switch_page("app.py").run()
     assert not at.exception and at.title[0].value == "ENVIO LLM Coding Assistant"

@@ -12,10 +12,10 @@ from .engine import AuditError
 from .retrieval import validate_documents
 
 LEVELS = {
-    "verified_source_check": "已核查的来源事实",
-    "candidate_rule_match": "候选规则相容，仍需复核",
-    "method_review": "方法与设计审查（待研究者确认）",
-    "insufficient_material": "当前材料不足",
+    "verified_source_check": "Checked against supplied sources",
+    "candidate_rule_match": "Candidate rule match — review needed",
+    "method_review": "Methods review — confirmation needed",
+    "insufficient_material": "Materials incomplete",
 }
 CLASSIFICATIONS = {"private_research", "publication_draft", "approved_public_summary", "synthetic_test"}
 

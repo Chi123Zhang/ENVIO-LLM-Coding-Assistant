@@ -127,7 +127,7 @@ def test_completion_public_ui_end_to_end_without_uploads(monkeypatch):
     at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=90).run()
     at.switch_page("pages/03_ORCCA_Evidence_Completion.py").run()
     assert not at.exception and not at.get("file_uploader")
-    assert len(at.tabs) == 4 and at.radio(key="completion_mode").options == ["模拟练习"]
+    assert len(at.tabs) == 4 and at.radio(key="completion_mode").options == ["Sample data"]
     initial_run = at.session_state["completion_run"]
     assert at.selectbox(key="completion_issue_" + initial_run)
     at.button(key="completion_retrieve").click().run()
@@ -135,10 +135,10 @@ def test_completion_public_ui_end_to_end_without_uploads(monkeypatch):
     cid = next(iter(at.session_state["completion_candidates"]))
     at.text_input(key="completion_reviewer").set_value("Synthetic tester")
     at.text_area(key="completion_reason_" + cid).set_value("Synthetic source matches the target")
-    at.radio(key="completion_decision_" + cid).set_value("接受")
-    next(b for b in at.button if b.label == "保存本次人工判定").click().run()
+    at.radio(key="completion_decision_" + cid).set_value("Accept")
+    next(b for b in at.button if b.label == "Save decision").click().run()
     assert not at.exception and len(at.session_state["completion_decisions"]) == 1
-    assert any("人工判定已保存" in x.value for x in at.success)
+    assert any("Decision saved" in x.value for x in at.success)
     # Changing the source must also change widget identity, not merely delete
     # session keys: real browsers can retain an old selectbox display otherwise.
     from orcca_audit import completion_ui

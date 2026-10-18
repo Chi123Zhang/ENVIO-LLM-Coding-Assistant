@@ -86,3 +86,24 @@ evidence support and time savings require real independent human annotation.
 Compare rules/dictionary, No-RAG LLM and RAG LLM on unused county/document groups;
 keep development pilot material out of claims about a formal held-out test set.
 No performance metrics are supplied by this module.
+
+## English interface and presentation
+
+ORCCA controls, review labels and workflow descriptions are in English.
+Findings and research questions come from the operator's bundle; use an English
+presentation copy to change their language. Preserve original evidence text,
+source IDs, reference links and checksums. An English presentation must not be
+represented as a translated source quotation. Local presentation bundles remain
+outside Git and still require explicit approval before any public release.
+
+The findings view states which results come from Python checks and which come
+from document review. Search locates supporting records; it does not establish
+the findings. Review notes were prepared in advance with AI assistance and need
+researcher confirmation. The notes are not generated during retrieval and are
+excluded from the search index. Technical records sit behind expanders while
+the main view shows findings, their basis and limits.
+
+The existing `orcca_audit/ui.py` has only presentation changes: links to the
+additional pages and a compact exposure summary, with raw diagnostics retained
+under expanders. No audit calculation, privacy rule or original ENVIO core file
+is changed by the English-language update.
