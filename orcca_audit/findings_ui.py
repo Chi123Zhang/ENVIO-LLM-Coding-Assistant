@@ -70,9 +70,9 @@ def render():
             q = questions[selected]
             st.caption("可回答性：" + {"answerable": "可回答", "partial": "部分可回答",
                 "insufficient_evidence": "证据不足"}[q["status"]])
-            st.markdown("**已整理的审查解释（非 LLM 生成）：**")
+            st.markdown("**预先整理的审查说明（待研究者复核）：**")
             st.write(q["review_answer"])
-            st.caption("这段解释来自审查人员整理与程序结果；下方检索单独返回材料，不将解释本身放入索引。")
+            st.caption("本页未调用生成模型。说明文本预先编写，数值来自程序核查，内容仍须研究者复核；说明文本不进入检索索引。")
             query = st.text_input("证据检索词（英文或字段名，可编辑）", value=q["query"],
                 key="findings_query_" + selected)
         else:
