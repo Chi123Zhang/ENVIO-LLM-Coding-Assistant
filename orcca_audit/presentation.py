@@ -11,6 +11,7 @@ def evidence_index(documents):
         "Last line or row": d.get("line_end"),
         "Evidence type": {"original_excerpt": "Original source excerpt",
             "deterministic_receipt": "Calculation record", "approved_summary": "Approved secondary summary"}.get(d.get("evidence_kind"), "Source record"),
+        "Text version": d.get("text_version", "Untranslated source text"),
         "Full text file": f"evidence/{i:03d}.txt"}
         for i, d in enumerate(documents, 1)]
 
@@ -65,7 +66,7 @@ def readable_report(results, classification, provenance):
         for label, key in (("Available", "available"), ("Missing", "missing"), ("Next step", "next_step")):
             md += ["**" + label + ":** " + str(h[key]), ""]
             html.append('<p><strong>' + label + ':</strong> ' + escape(str(h[key])) + '</p>')
-    note = "Full quotations are in the evidence folder. They retain the source language and are not English translations. The evidence index lists locations without embedding long quotations in spreadsheet cells. Machine-readable JSON and original CSV exports are included for technical review."
+    note = "Full English evidence text is in the evidence folder. Translated records are explicitly marked in the JSON and CSV, with separate original and translated text hashes. Original research files remain unchanged and local. The evidence index lists locations without embedding long passages in spreadsheet cells. JSON and CSV exports are included for technical review."
     md += ["## Reading the evidence", "", note, ""]
     html += ['<h2>Reading the evidence</h2><p>' + escape(note) + '</p></html>']
     return "\n".join(md), "\n".join(html), index

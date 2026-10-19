@@ -17,6 +17,8 @@ def _evidence(doc):
     st.markdown(f"**{doc['source_file']}** · {kind}")
     page = f"Page {doc['page']}, " if doc.get("page") else ""
     st.caption(f"{page}lines/rows {doc['line_start']}–{doc['line_end']}")
+    if doc.get("text_version"):
+        st.caption(doc["text_version"])
     st.code(doc["text"], language=None)
     with st.expander("Exact source reference and checksum"):
         st.write(doc.get("locator", "See the page and row reference above."))
@@ -43,6 +45,8 @@ def render():
     try:
         bundle, digest = load_bundle(path, private_mode=private,
             approved_sha256=approved_hash)
+        from .english_export import english_results
+        bundle["documents"] = english_results({"evidence_excerpts": bundle["documents"]})["evidence_excerpts"]
     except (AuditError, OSError) as exc:
         st.error(str(exc) if isinstance(exc, AuditError) else "The research review could not be read. No other data were substituted.")
         return
@@ -155,7 +159,7 @@ def render():
         st.write("Planned comparison: rules, an LLM without retrieval, and an LLM with retrieval. Two independent reviewers will label cases and resolve disagreements. Test splits should separate counties or documents; reference answers must stay out of the index.")
         st.caption("Pilot size is not the number of labelled cases. Software checks and research performance are reported separately.")
     with tabs[4]:
-        st.write("After extracting the ZIP, open START_HERE.html for the formatted English report. Use evidence_index.csv for source locations; full quotations are separate text files in their original language.")
+        st.write("After extracting the ZIP, open START_HERE.html for the formatted English report. All exported text is English. Use evidence_index.csv for source locations; translated records are marked with original and translated text hashes.")
         exported = {"research_findings": bundle["findings"], "hypotheses": bundle["hypotheses"],
             "evidence_excerpts": bundle["documents"],
             "sources": bundle["sources"], "human_evaluation": bundle.get("evaluation", {})}
