@@ -28,4 +28,3 @@ H3–H5 need process data beyond the supplied files
 The abstract outlines mediation, moderation and CTH sequencing questions. Table 4 lists meeting, interview and fidelity sources, but the eight supplied materials do not contain the complete county–time process data needed to analyse these questions.
 Basis: The inventory compared the supplied files and local fields with abstract pages 1, 3 and 4 and the text-analysis summaries on slides 2–3.
 Limits: The team may hold data that were not supplied. Aggregate topic or sentiment proportions from 7,850 sentences cannot be assigned to county–months. Strategy start-up dates are not CTH phase timelines.
-
