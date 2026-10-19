@@ -155,6 +155,7 @@ def render():
         st.write("Planned comparison: rules, an LLM without retrieval, and an LLM with retrieval. Two independent reviewers will label cases and resolve disagreements. Test splits should separate counties or documents; reference answers must stay out of the index.")
         st.caption("Pilot size is not the number of labelled cases. Software checks and research performance are reported separately.")
     with tabs[4]:
+        st.write("After extracting the ZIP, open START_HERE.html for the formatted English report. Use evidence_index.csv for source locations; full quotations are separate text files in their original language.")
         exported = {"research_findings": bundle["findings"], "hypotheses": bundle["hypotheses"],
             "evidence_excerpts": bundle["documents"],
             "sources": bundle["sources"], "human_evaluation": bundle.get("evaluation", {})}
@@ -164,4 +165,4 @@ def render():
             {"review_date": bundle.get("review_date"), "bundle_sha256": digest,
              "audit_run": bundle.get("audit_run", {})}),
             "orcca_research_findings.zip", "application/zip", key="findings_download")
-        st.caption("Local reports may contain study identifiers and excerpts. Original files are unchanged.")
+        st.caption("CSV and JSON files are technical exports. Local reports may contain private source text; share only with authorized researchers. Original files are unchanged.")

@@ -54,6 +54,14 @@ range. Claiming reproduced statistical models is rejected by this review schema.
 The export includes the current findings, all supporting excerpts and sources,
 the current retrieval result when valid, and the review-bundle fingerprint.
 
+For reading or presentation, extract the ZIP and open `START_HERE.html`. It
+contains a short overview table and finding-by-finding basis, limits and source
+links. `audit_report.md` provides the text version rather than a JSON dump.
+`evidence_index.csv` keeps source IDs and locations in a compact table; full
+quotations are separate files under `evidence/`. Original-language text remains
+unchanged. Existing CSV/JSON exports remain available for technical review.
+Private reading copies remain private; formatting does not authorize release.
+
 ## Public release gate
 
 A local bundle is never made public merely by configuring a path. Outside local

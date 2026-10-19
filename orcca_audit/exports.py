@@ -37,9 +37,23 @@ def report_bundle(results, classification, provenance=None):
     target = BytesIO()
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("audit_report.json", payload)
-        archive.writestr("audit_report.md", "# Research audit\n\nData: " + classification +
-            "\n\nChecks compare supplied sources. Candidate matches do not reproduce a model. "
-            "No empirical RAG performance has been measured.\n\n```json\n" + payload + "\n```\n")
+        if "research_findings" in results:
+            from .presentation import readable_report
+            markdown, html, index = readable_report(results, classification, provenance or {})
+            archive.writestr("audit_report.md", markdown)
+            archive.writestr("START_HERE.html", html)
+            archive.writestr("evidence_index.csv", safe_csv(index))
+            archive.writestr("README.txt", "START_HERE.html: formatted English reading copy; open in a browser.\n"
+                "audit_report.md: English text report.\nevidence_index.csv: compact source-location table.\n"
+                "evidence/: complete, unmodified source text in its original language.\n"
+                "Other CSV and JSON files: technical exports; long source text may not display well in spreadsheets.\n"
+                "Original study files are unchanged. Private exports remain restricted to authorized researchers.\n")
+            for i, doc in enumerate(results.get("evidence_excerpts", []), 1):
+                archive.writestr(f"evidence/{i:03d}.txt", doc["text"])
+        else:
+            archive.writestr("audit_report.md", "# Research audit\n\nData: " + classification +
+                "\n\nChecks compare supplied sources. Candidate matches do not reproduce a model. "
+                "No empirical RAG performance has been measured.\n\n```json\n" + payload + "\n```\n")
         for section, result in results.items():
             if isinstance(result, dict):
                 for name, rows in result.items():
