@@ -165,12 +165,13 @@ def render():
         preset = st.selectbox("Synthetic explanation question", PUBLIC_QUESTIONS, key="orcca_preset")
         query = st.text_input("Retrieval query (English or field identifier)", value=preset, key="orcca_query")
         backend = st.selectbox("Retrieval backend", ["bm25", "hybrid"], key="orcca_backend",
-            help="Hybrid reuses ENVIO FAISS/BM25/reranking with cached local weights. Missing weights produce an explicit failure.")
+            help="Hybrid runs FAISS/BM25 and reranking in the app. Public mode can download fixed model assets on first use; loading failures remain explicit.")
         fingerprint = hashlib.sha256(json.dumps([query, backend, [(d["chunk_id"], d["sha256"], d["source_file"]) for d in documents]], sort_keys=True).encode()).hexdigest()
         if st.button("Retrieve source evidence", key="orcca_retrieve"):
             st.session_state.pop("orcca_explanation", None)
             try:
-                st.session_state["orcca_retrieval"] = retrieve(query, documents, backend)
+                with st.spinner("Loading hybrid models and searching..." if backend == "hybrid" else "Searching source evidence..."):
+                    st.session_state["orcca_retrieval"] = retrieve(query, documents, backend)
             except Exception:
                 st.session_state["orcca_retrieval"] = {"status": "retrieval_error_no_fallback", "backend": backend, "citations": []}
             st.session_state["orcca_retrieval_fingerprint"] = fingerprint

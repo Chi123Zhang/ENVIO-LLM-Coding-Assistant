@@ -22,18 +22,17 @@ explicitly authored explanations, hypothesis material readiness, retrieval
 capabilities/evaluation limits, and report export. Original evidence and Python
 calculation receipts are labelled separately. Evidence hashes verify excerpt
 content, not semantic truth. Document-level hashes must state whether they
-identify original file bytes or a browser extraction. If there is no configured
-bundle, the page explicitly reports that no findings are published; it never
-substitutes demonstration values.
+identify original file bytes or a browser extraction. In local private mode, a missing configured bundle is reported explicitly. In
+public mode, the five approved aggregate summaries bundled with the release
+are the default; they are labelled as secondary summaries, not original data.
 
 Use only raw source excerpts and reproducible calculation receipts in retrieval.
 Human labels, adjudication and model outputs are rejected by the existing ENVIO
 retrieval validator. Authored finding statements and question explanations are
-not automatically added to the index. Chinese preset question labels map to
-editable English/field-ID queries compatible with the existing tokenizer. A
-free Chinese query may explicitly fail rather than silently translate or call
-an external service. Cached-weight hybrid retains the existing explicit failure
-status, without fallback.
+not automatically added to the index. Preset questions and editable queries use English or field IDs. Queries are
+not silently translated through an external service. Private hybrid uses cached
+weights; public mode may download the fixed public assets documented in
+`PUBLIC_RELEASE.md`. Failure remains explicit, without fallback.
 
 ## Required schema
 
@@ -63,8 +62,9 @@ private mode, loading requires all of the following:
 - classification `approved_public_summary`;
 - publication.status `approved` and a nonempty approval_reference;
 - only approved_summary evidence with classification approved_public_excerpt;
-- operator configuration `ORCCA_PUBLIC_FINDINGS_SHA256` equal to the SHA-256 of
-  the exact approved bundle bytes.
+- a SHA-256 pin for the exact approved bundle bytes: `public_review.py` pins the
+  bundled default, while an explicit operator path requires
+  `ORCCA_PUBLIC_FINDINGS_SHA256`.
 
 A publication_draft or private_research bundle is denied. Public retrieval only
 searches approved secondary summaries; it must not be represented as retrieval

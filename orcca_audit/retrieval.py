@@ -52,9 +52,14 @@ def retrieve(query, documents, backend="bm25", top_k=3):
             return {"status": "hybrid_unavailable_no_fallback", "backend": backend, "citations": []}
     else:
         raise AuditError("Unsupported retrieval backend.")
-    return {"status": "retrieved_evidence_unreviewed", "backend": backend,
+    result = {"status": "retrieved_evidence_unreviewed", "backend": backend,
         "citations": [dict(doc, score=score) for doc, score in ranked],
         "explanation_kind": "extractive_evidence_not_model_explanation"}
+    if backend == "hybrid":
+        from .hybrid import MODEL_REVISIONS
+        result["model_revisions"] = dict(MODEL_REVISIONS)
+        result["inference_location"] = "application_cpu; no external text inference"
+    return result
 
 
 def verify_model_response(answer, retrieved):
