@@ -1,0 +1,228 @@
+{
+  "schema_version": "1.0",
+  "review_date": "2026-10-18",
+  "findings": [
+    {
+      "finding_id": "F1",
+      "title": "Panel structure and source checks agree",
+      "level": "verified_source_check",
+      "statement": "The panel contains 136 unique county–month records: eight counties over 17 months. Death intervals, suppression flags and population match the supplied sources for all 136 rows.",
+      "verification_method": "Python checks compared each panel row with the monthly and annual CDC files, then checked key uniqueness and coverage.",
+      "limitations": "This establishes agreement among the supplied files. It does not validate every outcome definition or the fitted model.",
+      "evidence_ids": [
+        "public-summary-F1"
+      ]
+    },
+    {
+      "finding_id": "F2",
+      "title": "Exposure values match a candidate rule; status questions remain",
+      "level": "candidate_rule_match",
+      "statement": "All 544 OEND/MOUD lag values fall within the permissive candidate-rule matches. Of these checks, 64 still involve uncertain status or require review.",
+      "verification_method": "Start and discontinuation fields were mapped by questionnaire version. Snapshot and L1/L13 calculations retained definite values, bounds and permissive candidates.",
+      "limitations": "This is not 100% accuracy or 64 confirmed errors. Blanks may reflect branching. The original panel-building code and status rules are still needed.",
+      "evidence_ids": [
+        "public-summary-F2"
+      ]
+    },
+    {
+      "finding_id": "F3",
+      "title": "Partial-year counts cannot be equated with annual totals",
+      "level": "verified_source_check",
+      "statement": "For five county–years, the counts within the analysis window cannot equal the full annual total. Including months outside the window leaves all 16 county–years compatible with the annual sources.",
+      "verification_method": "Bounds for all 12 months were divided into inside- and outside-window counts, then checked jointly against the annual totals.",
+      "limitations": "This rules out a particular partial-year equality. It does not show that the original model used that equality; the joint likelihood and handling of outside-window months need code review.",
+      "evidence_ids": [
+        "public-summary-F3"
+      ]
+    },
+    {
+      "finding_id": "F4",
+      "title": "The two H2a summaries use different stated designs",
+      "level": "method_review",
+      "statement": "The slides describe three months of exposure followed by three months of deaths, with standardized log intensity. The panel stores monthly deaths and candidate raw intensities. The reported estimates should not be treated as the same specification.",
+      "verification_method": "The review compared slides 6–8, panel fields and records, the main results rows and the supplied email description. No model was refitted.",
+      "limitations": "The stored columns do not reveal every transformation before fitting. Original code is needed to establish which specifications were used and why the estimates differ.",
+      "evidence_ids": [
+        "public-summary-F4"
+      ]
+    },
+    {
+      "finding_id": "F5",
+      "title": "H3–H5 need process data beyond the supplied files",
+      "level": "insufficient_material",
+      "statement": "The abstract outlines mediation, moderation and CTH sequencing questions. Table 4 lists meeting, interview and fidelity sources, but the eight supplied materials do not contain the complete county–time process data needed to analyse these questions.",
+      "verification_method": "The inventory compared the supplied files and local fields with abstract pages 1, 3 and 4 and the text-analysis summaries on slides 2–3.",
+      "limitations": "The team may hold data that were not supplied. Aggregate topic or sentiment proportions from 7,850 sentences cannot be assigned to county–months. Strategy start-up dates are not CTH phase timelines.",
+      "evidence_ids": [
+        "public-summary-F5"
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "Q1",
+      "question": "What has been checked in the supplied data?",
+      "query": "county Deaths population panel_rows unique_key",
+      "finding_ids": [
+        "F1"
+      ],
+      "status": "answerable",
+      "review_answer": "The panel contains 136 unique county–month records: eight counties over 17 months. Death intervals, suppression flags and population match the supplied sources for all 136 rows."
+    },
+    {
+      "question_id": "Q2",
+      "question": "Why do 64 checks need review despite 544 candidate matches?",
+      "query": "OEND MOUD exposure lag status candidate rule review",
+      "finding_ids": [
+        "F2"
+      ],
+      "status": "partial",
+      "review_answer": "All 544 OEND/MOUD lag values fall within the permissive candidate-rule matches. Of these checks, 64 still involve uncertain status or require review. A numerical match does not establish the original status algorithm."
+    },
+    {
+      "question_id": "Q3",
+      "question": "Do the annual checks show an error in the original model?",
+      "query": "annual_lo outside_months incorrect_window_equals_annual_feasible annual constraint",
+      "finding_ids": [
+        "F3"
+      ],
+      "status": "insufficient_evidence",
+      "review_answer": "Not established. The checks show why partial-year counts cannot simply equal annual totals. The original code is needed to determine how the model actually imposed annual constraints."
+    },
+    {
+      "question_id": "Q4",
+      "question": "Why are the two H2a summaries not directly comparable?",
+      "query": "Temporal ordering Exposure scale subsequent months standardized log intensity",
+      "finding_ids": [
+        "F4"
+      ],
+      "status": "partial",
+      "review_answer": "The slides describe three months of exposure followed by three months of deaths, with standardized log intensity. The panel stores monthly deaths and candidate raw intensities. The reported estimates should not be treated as the same specification. Final transformations and fitted specifications require the original code."
+    },
+    {
+      "question_id": "Q5",
+      "question": "What is still needed for H3, H4 and H5?",
+      "query": "H3 H4 H5 Mediation Moderation Sequencing Fidelity meeting transcripts interviews",
+      "finding_ids": [
+        "F5"
+      ],
+      "status": "partial",
+      "review_answer": "County- and time-linked coalition process measures, context measures and CTH phase records are needed. Listing a source in the abstract does not mean the underlying data are in the eight supplied files."
+    },
+    {
+      "question_id": "Q6",
+      "question": "Has retrieval improved accuracy or saved time?",
+      "query": "human reference labels original model implementation",
+      "finding_ids": [],
+      "status": "insufficient_evidence",
+      "review_answer": "Not established. Source-linked retrieval and deterministic checks are implemented, but independent human evaluation is incomplete. No accuracy gain or time saving has been measured."
+    }
+  ],
+  "classification": "approved_public_summary",
+  "publication": {
+    "status": "approved",
+    "approval_reference": "Owner instruction on 2026-10-20 to resolve the two stated limitations: cloud hybrid and publication of the five research summaries. Aggregate summaries and limits only; original records and excerpts excluded."
+  },
+  "sources": [
+    {
+      "source_id": "public_summary",
+      "source_file": "docs/PUBLIC_RESEARCH_SUMMARY.md",
+      "scope": "Approved secondary review only; underlying study documents are not public."
+    }
+  ],
+  "documents": [
+    {
+      "chunk_id": "public-summary-F1",
+      "source_id": "public_summary",
+      "source_file": "docs/PUBLIC_RESEARCH_SUMMARY.md",
+      "page": null,
+      "line_start": 7,
+      "line_end": 10,
+      "locator": "Approved secondary summary F1, physical lines 7–10; not an original-source quotation.",
+      "text": "Panel structure and source checks agree\nThe panel contains 136 unique county–month records: eight counties over 17 months. Death intervals, suppression flags and population match the supplied sources for all 136 rows.\nBasis: Python checks compared each panel row with the monthly and annual CDC files, then checked key uniqueness and coverage.\nLimits: This establishes agreement among the supplied files. It does not validate every outcome definition or the fitted model.",
+      "sha256": "a59736a0901844531732458e69e4fd43cbce9f12f274dbde308199ecb4de6722",
+      "classification": "approved_public_excerpt",
+      "evidence_kind": "approved_summary"
+    },
+    {
+      "chunk_id": "public-summary-F2",
+      "source_id": "public_summary",
+      "source_file": "docs/PUBLIC_RESEARCH_SUMMARY.md",
+      "page": null,
+      "line_start": 12,
+      "line_end": 15,
+      "locator": "Approved secondary summary F2, physical lines 12–15; not an original-source quotation.",
+      "text": "Exposure values match a candidate rule; status questions remain\nAll 544 OEND/MOUD lag values fall within the permissive candidate-rule matches. Of these checks, 64 still involve uncertain status or require review.\nBasis: Start and discontinuation fields were mapped by questionnaire version. Snapshot and L1/L13 calculations retained definite values, bounds and permissive candidates.\nLimits: This is not 100% accuracy or 64 confirmed errors. Blanks may reflect branching. The original panel-building code and status rules are still needed.",
+      "sha256": "b7a3d58df76b969f924e0934db7e55ae65fee3bae46aa5334497ef38083f7455",
+      "classification": "approved_public_excerpt",
+      "evidence_kind": "approved_summary"
+    },
+    {
+      "chunk_id": "public-summary-F3",
+      "source_id": "public_summary",
+      "source_file": "docs/PUBLIC_RESEARCH_SUMMARY.md",
+      "page": null,
+      "line_start": 17,
+      "line_end": 20,
+      "locator": "Approved secondary summary F3, physical lines 17–20; not an original-source quotation.",
+      "text": "Partial-year counts cannot be equated with annual totals\nFor five county–years, the counts within the analysis window cannot equal the full annual total. Including months outside the window leaves all 16 county–years compatible with the annual sources.\nBasis: Bounds for all 12 months were divided into inside- and outside-window counts, then checked jointly against the annual totals.\nLimits: This rules out a particular partial-year equality. It does not show that the original model used that equality; the joint likelihood and handling of outside-window months need code review.",
+      "sha256": "9a87aa961c9a29b09f5324ae8205059896bcb65105f395011672fdf569392b93",
+      "classification": "approved_public_excerpt",
+      "evidence_kind": "approved_summary"
+    },
+    {
+      "chunk_id": "public-summary-F4",
+      "source_id": "public_summary",
+      "source_file": "docs/PUBLIC_RESEARCH_SUMMARY.md",
+      "page": null,
+      "line_start": 22,
+      "line_end": 25,
+      "locator": "Approved secondary summary F4, physical lines 22–25; not an original-source quotation.",
+      "text": "The two H2a summaries use different stated designs\nThe slides describe three months of exposure followed by three months of deaths, with standardized log intensity. The panel stores monthly deaths and candidate raw intensities. The reported estimates should not be treated as the same specification.\nBasis: The review compared slides 6–8, panel fields and records, the main results rows and the supplied email description. No model was refitted.\nLimits: The stored columns do not reveal every transformation before fitting. Original code is needed to establish which specifications were used and why the estimates differ.",
+      "sha256": "2d7fd4afb19f2f08c59f4c1cf68c5864d6ac9b6248a283f981748957aee95a89",
+      "classification": "approved_public_excerpt",
+      "evidence_kind": "approved_summary"
+    },
+    {
+      "chunk_id": "public-summary-F5",
+      "source_id": "public_summary",
+      "source_file": "docs/PUBLIC_RESEARCH_SUMMARY.md",
+      "page": null,
+      "line_start": 27,
+      "line_end": 30,
+      "locator": "Approved secondary summary F5, physical lines 27–30; not an original-source quotation.",
+      "text": "H3–H5 need process data beyond the supplied files\nThe abstract outlines mediation, moderation and CTH sequencing questions. Table 4 lists meeting, interview and fidelity sources, but the eight supplied materials do not contain the complete county–time process data needed to analyse these questions.\nBasis: The inventory compared the supplied files and local fields with abstract pages 1, 3 and 4 and the text-analysis summaries on slides 2–3.\nLimits: The team may hold data that were not supplied. Aggregate topic or sentiment proportions from 7,850 sentences cannot be assigned to county–months. Strategy start-up dates are not CTH phase timelines.",
+      "sha256": "9e1f1862388d6c993c78d1905d2789a8c7651b20cc7681509710b1f3ec2282cc",
+      "classification": "approved_public_excerpt",
+      "evidence_kind": "approved_summary"
+    }
+  ],
+  "hypotheses": [
+    {
+      "hypothesis": "H3",
+      "definition": "Mediation",
+      "available": "Hypothesis definitions, candidate EBP exposures and mortality records.",
+      "missing": "County–time coalition process measures.",
+      "next_step": "Obtain and validate the relevant process data before selecting a statistical specification. No effect has been estimated here."
+    },
+    {
+      "hypothesis": "H4",
+      "definition": "Moderation",
+      "available": "Hypothesis definitions, candidate EBP exposures and mortality records.",
+      "missing": "Source-linked context measures with county and applicable dates.",
+      "next_step": "Obtain and validate the relevant process data before selecting a statistical specification. No effect has been estimated here."
+    },
+    {
+      "hypothesis": "H5",
+      "definition": "CTH timing and sequence",
+      "available": "Hypothesis definitions, candidate EBP exposures and mortality records.",
+      "missing": "Planned and actual CTH phase dates and a reviewed sequencing definition.",
+      "next_step": "Obtain and validate the relevant process data before selecting a statistical specification. No effect has been estimated here."
+    }
+  ],
+  "evaluation": {
+    "human_evaluation": "not_completed",
+    "improvement_measured": false,
+    "external_generation": "disabled"
+  }
+}

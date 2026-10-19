@@ -132,7 +132,8 @@ def render():
             st.caption("Search is limited to the same county, applicable month, strategy and version. Automatic candidates require an explicit field assignment in the source. Narrative passages may remain unresolved.")
             if st.button("Find a source-based candidate", key="completion_retrieve"):
                 try:
-                    result = evidence_candidate(issue, documents, run_id, backend)
+                    with st.spinner("Loading hybrid models and searching..." if backend == "hybrid" else "Searching source evidence..."):
+                        result = evidence_candidate(issue, documents, run_id, backend)
                 except Exception:
                     result = {"status": "retrieval_error_no_fallback", "candidates": [], "citations": []}
                 st.session_state["completion_search"] = (selected, backend, result)

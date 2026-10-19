@@ -32,13 +32,17 @@ def render():
     st.sidebar.page_link("pages/03_ORCCA_Evidence_Completion.py", label="Evidence completion")
     private = private_uploads_allowed()
     path = os.environ.get("ORCCA_FINDINGS_BUNDLE")
+    approved_hash = os.environ.get("ORCCA_PUBLIC_FINDINGS_SHA256")
+    if not path and not private:
+        from .public_review import bundled_public_review
+        path, approved_hash = bundled_public_review()
     if not path:
         st.info("No research review is configured. Demo results are not used as study findings.")
         st.write("Research summaries require source checks and researcher review before publication.")
         return
     try:
         bundle, digest = load_bundle(path, private_mode=private,
-            approved_sha256=os.environ.get("ORCCA_PUBLIC_FINDINGS_SHA256"))
+            approved_sha256=approved_hash)
     except (AuditError, OSError) as exc:
         st.error(str(exc) if isinstance(exc, AuditError) else "The research review could not be read. No other data were substituted.")
         return
@@ -98,10 +102,13 @@ def render():
         else:
             query = st.text_input("Search terms or field names", key="findings_query")
         backend = st.selectbox("Search method", ["bm25", "hybrid"], key="findings_backend")
+        if backend == "hybrid":
+            st.caption("Hybrid runs in this app. The first public search may download fixed model weights; search text is not sent to an inference service.")
         fingerprint = retrieval_fingerprint(digest, query, backend)
         if st.button("Find supporting records", key="findings_retrieve"):
             try:
-                result = retrieve(query, bundle["documents"], backend)
+                with st.spinner("Loading search models and finding records..." if backend == "hybrid" else "Finding records..."):
+                    result = retrieve(query, bundle["documents"], backend)
             except Exception:
                 result = {"status": "retrieval_error_no_fallback", "backend": backend, "citations": []}
             st.session_state["findings_result"] = result

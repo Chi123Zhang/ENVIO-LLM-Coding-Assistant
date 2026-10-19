@@ -96,6 +96,7 @@ def test_fingerprints_change_with_input_query_or_backend():
 
 
 def test_public_page_does_not_substitute_demo_or_show_private_bundle(monkeypatch, tmp_path):
+    monkeypatch.setattr("orcca_audit.public_review.bundled_public_review", lambda: (None, None))
     monkeypatch.delenv("ORCCA_DEPLOYMENT_MODE", raising=False)
     monkeypatch.delenv("ORCCA_ALLOW_PRIVATE_UPLOADS", raising=False)
     monkeypatch.delenv("ORCCA_FINDINGS_BUNDLE", raising=False)
