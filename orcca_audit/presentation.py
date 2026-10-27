@@ -23,16 +23,19 @@ def readable_report(results, classification, provenance):
     by_id = {d["chunk_id"]: row for d, row in zip(docs, index)}
     scope = ("Approved aggregate summaries only. Original study documents are not published."
         if classification == "approved_public_summary" else
+        "Synthetic software practice only. These are not study findings."
+        if classification.startswith("synthetic") else
         "Private research review. This package contains source excerpts; share only with authorized researchers.")
     intro = ["ORCCA research review", scope,
         "These are data and methods checks. H2a has not been reproduced; H3–H5 have not been tested. Retrieval accuracy and time savings have not been measured."]
+    date_label = "Generated" if provenance.get("run_id") else "Reviewed"
     md = ["# " + intro[0], "", intro[1], "", intro[2], "",
-        "Reviewed: " + str(provenance.get("review_date") or "Not specified"), ""]
+        date_label + ": " + str(provenance.get("review_date") or "Not specified"), ""]
     html = ['<!doctype html><html lang="en"><meta charset="utf-8"><title>ORCCA research review</title>',
         '<style>body{font:16px/1.6 Arial,sans-serif;color:#243247;max-width:1050px;margin:40px auto;padding:0 24px}h1,h2{line-height:1.3}h2{margin-top:36px}p{max-width:90ch}.scope{background:#eef4fa;padding:16px}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{padding:12px;text-align:left;vertical-align:top;border-bottom:1px solid #dce3eb;overflow-wrap:anywhere}th{background:#eef4fa}th:first-child{width:9%}.status{color:#52667c;font-size:14px}.source{font-size:14px}a{color:#245b91}@media print{body{margin:0;max-width:none}article{break-inside:avoid}}</style>',
         '<h1>ORCCA research review</h1>', '<p class="scope">' + escape(scope) + '</p>',
         '<p>' + escape(intro[2]) + '</p>',
-        '<p class="status">Reviewed: ' + escape(str(provenance.get("review_date") or "Not specified")) + '</p>',
+        '<p class="status">' + date_label + ': ' + escape(str(provenance.get("review_date") or "Not specified")) + '</p>',
         '<h2>Findings at a glance</h2><table><thead><tr><th>ID</th><th>Topic</th><th>Evidence status</th></tr></thead><tbody>']
     for f in findings:
         level = LEVELS.get(f["level"], f["level"].replace("_", " "))
@@ -43,9 +46,19 @@ def readable_report(results, classification, provenance):
         level = LEVELS.get(f["level"], f["level"].replace("_", " "))
         md += ["## " + title, "", "Evidence status: " + level, ""]
         html += ['<article><h2>' + escape(title) + '</h2><p class="status">' + escape(level) + '</p>']
+        if f.get("review_status"):
+            status = "Review status: " + f["review_status"]
+            md += [status, ""]
+            html.append('<p class="status">' + escape(status) + '</p>')
         for label, key in (("Finding", "statement"), ("Basis", "verification_method"), ("Limits", "limitations")):
             md += ["**" + label + ":** " + str(f[key]), ""]
             html.append('<p><strong>' + label + ':</strong> ' + escape(str(f[key])) + '</p>')
+        if f.get("human_review"):
+            review = f["human_review"]
+            for label, key in (("Reviewer", "reviewer"), ("Review reason", "reason"), ("Researcher note", "researcher_note")):
+                if review.get(key):
+                    md += ["**" + label + ":** " + review[key], ""]
+                    html.append('<p><strong>' + label + ':</strong> ' + escape(review[key]) + '</p>')
         refs = []
         for eid in f.get("evidence_ids", []):
             row = by_id.get(eid)

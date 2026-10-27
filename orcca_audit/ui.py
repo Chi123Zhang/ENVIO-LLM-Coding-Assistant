@@ -33,10 +33,19 @@ def render():
     st.sidebar.page_link("pages/02_ORCCA_Research_Findings.py", label="Research findings")
     st.sidebar.page_link("pages/03_ORCCA_Evidence_Completion.py", label="Evidence completion")
     private = private_uploads_allowed()
+    from .workflow import current_project
+    from .workflow_ui import navigation, project_header
+    navigation()
+    project = current_project(st.session_state, private)
+    if project:
+        project_header(project)
     st.info("Local private mode: uploads stay in this session; external generation for uploaded research evidence is disabled."
         if private else "Public Demo · Every bundled value and document is synthetic. Do not upload ORCCA research data to this public app.")
     st.warning("Verified source checks, candidate-rule matches, model explanations and unknowns are different evidence levels. This app does not reproduce H2a or establish improved RAG accuracy.")
     if st.button("Clear this audit session", key="orcca_clear"):
+        if project:
+            from .workflow import invalidate
+            invalidate(st.session_state, "Project cleared. Load inputs in Workflow.")
         upload_epoch = st.session_state.get("orcca_upload_epoch", 0) + 1
         for key in list(st.session_state):
             if key.startswith("orcca_") and key != "orcca_clear":
@@ -45,11 +54,16 @@ def render():
         # Deleting server state alone leaves stale file chips in Streamlit.
         st.session_state["orcca_upload_epoch"] = upload_epoch
         st.rerun()
-    data = demo_data()
-    classification = "synthetic_public_demo"
-    documents = public_documents()
-    provenance = {"module_version": VERSION, "synthetic": True}
-    if private:
+    if st.session_state.get("workflow_active") and not project:
+        st.warning("No current project audit. Inputs changed or the project was cleared; no demo or previous audit is substituted.")
+        st.page_link("pages/04_ORCCA_Workflow.py", label="Load inputs in Workflow")
+        return
+    data = project['data'] if project else demo_data()
+    classification = project['classification'] if project else "synthetic_public_demo"
+    documents = project['documents'] if project else public_documents()
+    provenance = {"module_version": VERSION, "synthetic": not private,
+        **({"run_id": project['run_id'], "inputs": project['manifest']} if project else {})}
+    if private and not project:
         st.subheader("Local input sources")
         st.caption("Normalized CSV/TSV tables, or the original local Tracker + dictionary XLSX pair. Raw files are not saved to the repository or a shared index.")
         supplied = {}
@@ -99,7 +113,7 @@ def render():
                 return
         else:
             st.caption("No private inputs supplied; the current results use the synthetic demo.")
-    else:
+    elif not private:
         # No file_uploader is constructed in public mode: private documents cannot
         # accidentally be sent to the server through the ORCCA page.
         with st.expander("Download the synthetic input fixture"):
@@ -200,5 +214,11 @@ def render():
         st.download_button("Download audit report and anomalies", report_bundle(results, classification, provenance),
             "orcca_audit_report.zip", "application/zip", key="orcca_report_download")
         st.info("Human evaluation: not run. No labels or RAG accuracy/time-saving metrics are bundled.")
+        if not project and st.button("Continue with these inputs in Workflow", key="orcca_to_workflow"):
+            from .workflow import start_project
+            start_project(st.session_state, data, documents, None, provenance,
+                private=classification == "private_local_session")
+            st.success("Current inputs are now shared with Workflow, Findings and Completion.")
+        st.page_link("pages/04_ORCCA_Workflow.py", label="Continue to project review and export")
     with st.expander("Future research modules"):
         st.json(EXTENSIONS)

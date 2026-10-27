@@ -62,12 +62,29 @@ def render():
     st.sidebar.page_link("pages/03_ORCCA_Evidence_Completion.py", label="Evidence completion")
     st.warning("Original fields are preserved. Source-based changes and statistical scenarios are kept separate. Suppressed death counts are not filled, and H2a is not refitted.")
     private = private_uploads_allowed()
-    mode = st.radio("Data source", ["Sample data", "Local research files"] if private else ["Sample data"], key="completion_mode")
+    from .workflow import current_project, apply_completion
+    from .workflow_ui import navigation, project_header
+    navigation()
+    project = current_project(st.session_state, private)
+    if st.session_state.get("workflow_active") and not project:
+        st.warning("No current project inputs. Reload them in Workflow; sample completion data are not substituted.")
+        st.page_link("pages/04_ORCCA_Workflow.py", label="Load inputs in Workflow")
+        return
+    options = (["Current web project"] if project else []) + (["Sample data", "Local research files"] if private else ["Sample data"])
+    mode = st.radio("Data source", options, key="completion_mode")
     if not private:
         st.info("Public mode uses sample data only. Research uploads and external LLM generation are disabled.")
     st.download_button("Download sample files and instructions", template_zip(), "synthetic_completion_inputs.zip", "application/zip")
     try:
-        if mode == "Sample data":
+        if mode == "Current web project":
+            project_header(project)
+            if 'tracker' not in project['data']:
+                st.warning('This project has no tracker. Add one in Workflow; sample data are not substituted.')
+                return
+            raw, evidence_frame = project['data']['tracker'], project['completion_evidence']
+            run_id = project['run_id']
+            classification = project['classification']
+        elif mode == "Sample data":
             raw, evidence_frame = synthetic_inputs()
             run_id = digest([raw.to_json(), evidence_frame.to_json(), "completion-v1"])
             classification = "synthetic_public"
@@ -218,6 +235,17 @@ def render():
             {"input_fingerprint": run_id, "method_version": "completion-v1", "external_llm_calls": 0}),
             "orcca_reviewed_completion.zip", "application/zip", key="completion_download")
         st.caption("Download before closing the session. These review decisions are not independent evaluation labels, and no accuracy improvement has been established.")
+        if mode == "Current web project":
+            st.subheader("Apply accepted source values and rerun")
+            st.write("Creates a derived tracker version and recalculates the audit. Original inputs are retained. Previous finding approvals expire; statistical scenarios are never applied to audit values.")
+            if st.button("Create derived version and rerun audit", key="workflow_apply_completion"):
+                try:
+                    apply_completion(st.session_state, project, data, issues,
+                        list(st.session_state["completion_candidates"].values()), list(st.session_state["completion_decisions"].values()))
+                    st.rerun()
+                except AuditError as exc:
+                    st.error(str(exc))
+            st.page_link("pages/04_ORCCA_Workflow.py", label="Return to Workflow to generate and review current findings")
 
 
 def _show_candidate(candidate):
