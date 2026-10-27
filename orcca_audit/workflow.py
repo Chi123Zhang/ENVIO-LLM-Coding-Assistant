@@ -183,6 +183,9 @@ def apply_completion(state, project, data, issues, candidates, decisions):
         if field+'__original_value' not in tracker:tracker[field+'__original_value']=tracker[field]
         if field+'__completion_kind' not in tracker:tracker[field+'__completion_kind']='original_or_missing'
         if field+'__candidate_id' not in tracker:tracker[field+'__candidate_id']=''
+        # CSV intake may use pandas' strict string dtype; a reviewed binary
+        # candidate is numeric. Preserve original strings in the parallel column.
+        tracker[field]=tracker[field].astype(object)
         tracker.loc[mask,field]=c['value']
         tracker.loc[mask,field+'__completion_kind']='human_approved_source_evidence'
         tracker.loc[mask,field+'__candidate_id']=c['candidate_id']

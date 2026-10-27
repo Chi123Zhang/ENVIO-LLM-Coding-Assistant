@@ -75,6 +75,23 @@ def test_private_projects_do_not_cross_public_policy():
     assert current_project(state,False) is None and state['workflow_active']
 
 
+def test_csv_string_tracker_can_accept_a_numeric_source_candidate():
+    from orcca_audit.io import read_table
+    state,p=project()
+    original=read_table(p['data']['tracker'].to_csv(index=False).encode(),'synthetic_tracker.csv')
+    p['data']['tracker']=original
+    data,issues=identify_issues(original)
+    issue=next(x for x in issues if x['eligible'])
+    candidate=evidence_candidate(issue,prepare_evidence(p['completion_evidence']),p['run_id'])['candidates'][0]
+    decision={'candidate_id':candidate['candidate_id'],'run_id':p['run_id'],'decision':'approve',
+        'reviewer':'Synthetic test','reason':'Explicit synthetic assertion'}
+    derived=apply_completion(state,p,data,issues,[candidate],[decision])
+    assert derived['results']['exposures']['summary']['uncertain_or_mismatched']==0
+    row=derived['data']['tracker'].iloc[1]
+    assert row['discontinued']==0 and row['discontinued__original_value']==''
+    assert original.iloc[1]['discontinued']==''
+
+
 def test_browser_project_state_survives_page_navigation(monkeypatch):
     monkeypatch.delenv('ORCCA_DEPLOYMENT_MODE',raising=False)
     monkeypatch.delenv('ORCCA_ALLOW_PRIVATE_UPLOADS',raising=False)
