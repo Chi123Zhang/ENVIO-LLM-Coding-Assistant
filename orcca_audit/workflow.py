@@ -126,6 +126,13 @@ def build_findings(project):
             f"{len(rows)-len(known)} fields are unknown in at least one record.",
             "The comparison uses supplied source-linked specifications. No original model code or fitted result is verified.",
             "method_review", rows)
+    for record in project['data'].get('implementation_evidence', []):
+        findings.append({'finding_id': 'I'+str(len([f for f in findings if f['finding_id'].startswith('I')])+1),
+            'title': 'Linked ENVIO implementation interpretation',
+            'statement': 'Candidate ENVIO codes: '+record['envio_codes']+'. Human applicability note: '+record['applicability_reason'],
+            'verification_method': 'Exact quotation matched to ENVIO extracted source text; a researcher assigned ORCCA relevance. Coding labels are not independently validated.',
+            'limitations': 'Scope is human assigned, not verified. No monthly variable, missing value or causal result is established. Review the original quotation and codebook applicability.',
+            'level': 'method_review', 'evidence_ids': [record['source_chunk_id']], 'review_status': 'pending'})
     # Only raw excerpts or calculation receipts enter the search index, never review decisions.
     for raw in project["documents"]:
         doc = deepcopy(raw); doc.setdefault("line_end", doc["line_start"])
@@ -234,8 +241,9 @@ def export_project(project, approved_only=False):
         "evidence_excerpts": bundle["documents"], "sources": bundle["sources"],
         "finding_review_decisions": list(project["finding_decisions"].values()),
         "completion_review_ledger": project["completion_ledger"], **project["results"]}
-    for role in ("panel", "monthly", "annual", "tracker", "original_tracker", "reported_results"):
-        if role in project["data"]:results["current_"+role] = project["data"][role].to_dict("records")
+    for role in ("panel", "monthly", "annual", "tracker", "original_tracker", "reported_results", "implementation_evidence"):
+        if role in project["data"]:results["current_"+role] = (project["data"][role].to_dict("records")
+            if isinstance(project["data"][role], pd.DataFrame) else deepcopy(project["data"][role]))
     if project['completion_evidence'] is not None:
         results['current_completion_evidence'] = project['completion_evidence'].to_dict('records')
     provenance = {**bundle["audit_run"], "review_date": bundle["review_date"], "date_timezone": "Asia/Shanghai"}

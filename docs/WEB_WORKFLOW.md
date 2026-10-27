@@ -87,3 +87,42 @@ Actual browser acceptance separately exercises file choosers, input replacement,
 required-source removal, retrieval, review, derived rerun and ZIP downloads.
 Successful software checks do not establish RAG accuracy gains, missing-value
 truth recovery, H2a reproduction or H3–H5 effects.
+
+## ENVIO coding handoff (private workspace)
+
+The original ENVIO page now links into the same project workflow. After a coding
+run, a researcher can select a coded segment, quote the exact extracted source,
+confirm that the material actually concerns this ORCCA project, and record an
+applicability reviewer and reason. County and event month are optional explicit
+human assignments, never inferred from a participant ID or interview date.
+
+The handoff creates a new project version and expires earlier finding approvals.
+Generating current findings adds a pending implementation interpretation. It must
+be reviewed separately before an accepted-only export includes it. The separate
+ledger retains original ENVIO labels, model rationale, requested coding settings,
+source hash, extracted-text locator, applicability and lineage. Only the original
+quotation enters the evidence index; model labels, rationale and review answers
+are excluded. The bridge does not retain ENVIO's retrieved context, so requested
+RAG settings must not be interpreted as proof of successful retrieval.
+
+This does not change ENVIO's codebook into an ORCCA codebook, fill any numeric
+field, generate a monthly implementation measure, or test H3–H5. Existing ENVIO
+coding uses its configured external service and requires independent data-use
+authorization. This handoff itself makes zero model calls. Public handoff of real
+study material remains disabled. If page navigation cleared the upload widgets,
+the earlier coding run must be explicitly selected with its recorded settings;
+it is never presented as a result for newly shown inputs.
+
+### Minimal changes to original ENVIO files
+
+Only `app.py` receives additive hooks: fingerprint current inputs/settings; clear
+an earlier captured run when Run starts; capture the existing successful coding
+output in private session memory; and render a separate handoff below the existing
+UI. No original function, codebook, model setting or workflow is replaced. The
+other five protected core files are untouched. The structure regression removes
+only these exact documented additions before checking original file hashes.
+
+Synthetic tests exercise transfer, invalidation, original quotation verification,
+source hashes, public-mode blocking, unknown/invalid applicability, duplicate
+passages, current Findings and ZIP export. UI tests use explicitly labelled mock
+coding output; they are not evidence of a real LLM generation or research accuracy.
