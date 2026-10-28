@@ -1,3 +1,5 @@
+> The default entry is now **H3 study preparation**: Tracker-first intake with optional outcomes. The historical panel workflow below remains under **Legacy data audit**. See [H3_DEMO_GUIDE.md](H3_DEMO_GUIDE.md) for the current recording route.
+
 # Browser-operated ORCCA project workflow
 
 Open **ORCCA Workflow**, or **Start / manage project** from any ORCCA page.

@@ -68,14 +68,15 @@ def render():
         except (AuditError, OSError) as exc:
             st.error(str(exc) if isinstance(exc, AuditError) else "The research review could not be read. No other data were substituted.")
             return
-    st.info(("Current private project: session data, not the saved research review." if private else
-             "Current synthetic practice project. These are not study findings.") if use_current else
+    st.info(("Current synthetic practice project. These are not study findings." if bundle["classification"].startswith("synthetic") else
+             "Current private project: session data, not the saved research review.") if use_current else
             ("Saved local research review. It is separate from current uploads." if private else
              "Public summary. Search covers approved summaries only; original study files are not published."))
     st.caption(("Draft generated " if use_current else "Reviewed ") + str(bundle.get('review_date', 'date not supplied')))
     with st.expander("Review version"):
         st.code(digest, language=None)
-    st.warning("These are data and methods checks. H2a has not been reproduced, and H3–H5 have not been tested.")
+    st.warning("H3 preparation only. No mediation effect has been estimated. H4 and H5 are deferred." if use_current and project['data'].get('_study_kind')=='h3'
+        else "These are data and methods checks. H2a has not been reproduced, and H3–H5 have not been tested.")
     if st.button("Reset search", key="findings_reset"):
         for key in list(st.session_state):
             if key.startswith("findings_") and key != "findings_reset":
@@ -94,7 +95,7 @@ def render():
     st.caption("Resets the question, query, search method and results. Findings and sources stay available.")
     if st.session_state.pop("findings_reset_notice", False):
         st.success("Search reset. Defaults restored and previous results cleared. Findings and sources are unchanged.")
-    tabs = st.tabs(["Findings", "Evidence search", "H3–H5 readiness", "Methods and evaluation", "Export"])
+    tabs = st.tabs(["Findings", "Evidence search", "H3 readiness" if use_current and project["data"].get("_study_kind")=="h3" else "H3–H5 readiness", "Methods and evaluation", "Export"])
     with tabs[0]:
         st.write("Each finding includes its basis, limits and supporting records.")
         for item in bundle["findings"]:
@@ -137,7 +138,11 @@ def render():
         if st.button("Find supporting records", key="findings_retrieve"):
             try:
                 with st.spinner("Loading search models and finding records..." if backend == "hybrid" else "Finding records..."):
-                    result = retrieve(query, bundle["documents"], backend)
+                    if use_current and project['data'].get('_study_kind')=='h3':
+                        from .study import search
+                        result = search(query,bundle['documents'],backend)
+                    else:
+                        result = retrieve(query, bundle["documents"], backend)
             except Exception:
                 result = {"status": "retrieval_error_no_fallback", "backend": backend, "citations": []}
             st.session_state["findings_result"] = result

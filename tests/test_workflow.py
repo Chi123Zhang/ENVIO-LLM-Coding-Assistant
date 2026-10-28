@@ -96,6 +96,7 @@ def test_browser_project_state_survives_page_navigation(monkeypatch):
     monkeypatch.delenv('ORCCA_DEPLOYMENT_MODE',raising=False)
     monkeypatch.delenv('ORCCA_ALLOW_PRIVATE_UPLOADS',raising=False)
     at=AppTest.from_file(str(ROOT/'app.py'),default_timeout=90).run()
+    at.session_state['workflow_workspace']='Legacy data audit'
     at.switch_page('pages/04_ORCCA_Workflow.py').run()
     assert not at.exception and not at.get('file_uploader')
     at.button(key='workflow_build').click().run()
@@ -112,6 +113,7 @@ def test_browser_project_state_survives_page_navigation(monkeypatch):
     at.switch_page('pages/03_ORCCA_Evidence_Completion.py').run()
     assert not at.exception and at.radio(key='completion_mode').value=='Current web project'
     assert at.session_state['completion_run']==run
+    at.session_state['workflow_workspace']='Legacy data audit'
     at.switch_page('pages/04_ORCCA_Workflow.py').run()
     assert not at.exception and at.session_state['workflow_project']['run_id']==run
     at.selectbox(key='workflow_sample').select('Changed panel').run()

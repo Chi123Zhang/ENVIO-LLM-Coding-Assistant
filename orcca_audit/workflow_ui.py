@@ -46,7 +46,8 @@ def navigation():
 def project_header(project):
     st.caption(f"Current web project · version {project['revision']} · {project['run_id'][:12]} · "
         + ("Private session" if project['classification'] == 'private_research' else 'Synthetic practice'))
-    st.caption("Upload → audit → evidence completion → rerun → findings review → export")
+    st.caption("Tracker → data review → source evidence → human review → H3 preparation findings → export" if project['data'].get('_study_kind')=='h3'
+        else "Upload → audit → evidence completion → rerun → findings review → export")
     st.page_link("pages/04_ORCCA_Workflow.py", label="Manage inputs and project versions")
 
 
@@ -98,6 +99,7 @@ def render_review(project, show_findings=False):
     if not bundle:
         st.info("Generate draft findings after the audit. No saved study conclusions will be substituted.")
         return
+    status_labels={}
     for finding in bundle['findings']:
         if show_findings:
             st.subheader(finding['finding_id'] + ' · ' + finding['title'])
@@ -105,7 +107,8 @@ def render_review(project, show_findings=False):
             st.caption('Basis: ' + finding['verification_method'])
             st.caption('Limits: ' + finding['limitations'])
         decision = project['finding_decisions'].get(finding['finding_id'])
-        st.caption(finding['finding_id'] + ' · ' + ('Accepted' if decision and decision['decision']=='approve' else 'Rejected' if decision else 'Pending review'))
+        status_labels[finding['finding_id']]=st.empty()
+        status_labels[finding['finding_id']].caption(finding['finding_id'] + ' · ' + ('Accepted' if decision and decision['decision']=='approve' else 'Rejected' if decision else 'Pending review'))
     with st.form('workflow_review_form_' + project['run_id']):
         chosen = st.selectbox('Finding to review', [f['finding_id'] for f in bundle['findings']],
             format_func=lambda key: next(f['title'] for f in bundle['findings'] if f['finding_id']==key))
@@ -117,12 +120,13 @@ def render_review(project, show_findings=False):
     if save:
         try:
             decide_finding(project, chosen, {'Accept':'approve','Reject':'reject'}.get(decision), reviewer, reason, note)
+            status_labels[chosen].caption(chosen+' · '+('Accepted' if decision=='Accept' else 'Rejected'))
             st.success('Review saved for this input version. It is not an independent evaluation label.')
         except AuditError as exc:st.error(str(exc))
     st.page_link('pages/03_ORCCA_Evidence_Completion.py', label='Review missing fields and source candidates')
 
 
-def render():
+def _render_legacy():
     st.title('ORCCA Project Workflow')
     st.caption('One browser session, versioned inputs, linked audit and review. No effect models or external LLM calls.')
     navigation()
@@ -245,3 +249,23 @@ def render():
                 st.caption('Includes version manifest, audit tables, current derived tracker, source evidence and review ledger. A draft export is labelled with each finding’s review status.')
             except AuditError as exc:st.info(str(exc))
         else:st.info('Generate findings in tab 4 before exporting the project report.')
+
+
+def _change_workspace():
+    st.session_state['workflow_workspace']=st.session_state['workflow_workspace_widget']
+    st.session_state.pop('workflow_input_files',None)
+    st.session_state['workflow_upload_epoch']=st.session_state.get('workflow_upload_epoch',0)+1
+    invalidate(st.session_state,'Workspace changed. Load inputs for this study; earlier findings are not current.')
+
+
+def render():
+    options=['H3 study preparation','Legacy data audit']
+    saved=st.session_state.get('workflow_workspace',options[0])
+    choice=st.radio('Workspace',options,index=options.index(saved),key='workflow_workspace_widget',on_change=_change_workspace)
+    st.session_state['workflow_workspace']=choice
+    if choice==options[0]:
+        from .study_ui import render as study_render
+        study_render()
+    else:
+        st.caption('Historical data and model-specification checks. H2a is not refitted; use H3 study preparation for the current research direction.')
+        _render_legacy()

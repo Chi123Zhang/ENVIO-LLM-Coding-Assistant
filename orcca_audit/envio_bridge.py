@@ -53,7 +53,8 @@ def transfer_segment(state, project, capture, row_index, quote, reviewer, reason
     if not str(row.get('codes', '')).strip() or str(row.get('source_type', '')).lower() == 'error':
         raise AuditError('This segment has no usable coding output.')
     county, month = county.strip(), month.strip()
-    counties = set(project['data']['panel']['county'].astype(str))
+    from .study import counties as project_counties
+    counties = set(project_counties(project))
     if county and county not in counties:raise AuditError('County must match this project; leave blank if unknown.')
     if month and (not county or not re.fullmatch(r'\d{4}-(0[1-9]|1[0-2])', month)):
         raise AuditError('An applicable month needs an explicit county and YYYY-MM. Leave unknown scope blank.')

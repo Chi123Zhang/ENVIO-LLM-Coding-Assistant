@@ -20,7 +20,7 @@ def invalidate(state, reason="Inputs changed. Run the audit again."):
     state["workflow_invalid_reason"] = reason
     state.pop("workflow_project", None)
     for key in list(state):
-        if key.startswith(("findings_", "completion_", "orcca_retrieval", "orcca_explanation")):
+        if key.startswith(("findings_", "completion_", "orcca_retrieval", "orcca_explanation", "study_search_result")):
             del state[key]
 
 
@@ -40,17 +40,11 @@ def start_project(state, data, documents, completion_evidence, manifest, private
         completion_evidence.to_json(orient="split") if completion_evidence is not None else None])
     run_id = digest([revision, inputs, parent])
     results = {}
-    try:
-        results["consistency"] = audit_consistency(snapshot["panel"], snapshot["monthly"], snapshot["annual"])
-    except AuditError as exc:
-        results["consistency"] = {"status": "input_error", "message": str(exc)}
-    if "tracker" in snapshot:
-        try:
-            results["exposures"] = verify_exposures(snapshot["panel"], snapshot["tracker"])
-        except AuditError as exc:
-            results["exposures"] = {"status": "input_error", "message": str(exc)}
-    if snapshot.get("specifications"):
-        results["specifications"] = compare_specifications(snapshot["specifications"])
+    if snapshot.get('_study_kind')=='h3':
+        from .study import audit
+        results = audit(snapshot)
+    else:
+        results = _legacy_results(snapshot)
     invalidate(state, "")
     project = {"run_id": run_id, "revision": revision, "input_fingerprint": inputs,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -62,6 +56,22 @@ def start_project(state, data, documents, completion_evidence, manifest, private
     state["workflow_project"] = project
     state["workflow_findings_source"] = "Current web project"
     return project
+
+
+def _legacy_results(snapshot):
+    results = {}
+    try:
+        results["consistency"] = audit_consistency(snapshot["panel"], snapshot["monthly"], snapshot["annual"])
+    except AuditError as exc:
+        results["consistency"] = {"status": "input_error", "message": str(exc)}
+    if "tracker" in snapshot:
+        try:
+            results["exposures"] = verify_exposures(snapshot["panel"], snapshot["tracker"])
+        except AuditError as exc:
+            results["exposures"] = {"status": "input_error", "message": str(exc)}
+    if snapshot.get("specifications"):
+        results["specifications"] = compare_specifications(snapshot["specifications"])
+    return results
 
 
 def _receipt(project, section, value):
@@ -78,6 +88,9 @@ def _receipt(project, section, value):
 
 
 def build_findings(project):
+    if project['data'].get('_study_kind')=='h3':
+        from .study import build_findings as build_study
+        return build_study(project)
     docs, findings = [], []
     def add(section, title, statement, limits, level, value):
         doc = _receipt(project, section, value); docs.append(doc)
@@ -241,7 +254,7 @@ def export_project(project, approved_only=False):
         "evidence_excerpts": bundle["documents"], "sources": bundle["sources"],
         "finding_review_decisions": list(project["finding_decisions"].values()),
         "completion_review_ledger": project["completion_ledger"], **project["results"]}
-    for role in ("panel", "monthly", "annual", "tracker", "original_tracker", "reported_results", "implementation_evidence"):
+    for role in ("panel", "monthly", "annual", "tracker", "original_tracker", "reported_results", "implementation_evidence", "study_records", "coalition_process"):
         if role in project["data"]:results["current_"+role] = (project["data"][role].to_dict("records")
             if isinstance(project["data"][role], pd.DataFrame) else deepcopy(project["data"][role]))
     if project['completion_evidence'] is not None:
@@ -252,8 +265,15 @@ def export_project(project, approved_only=False):
     target = BytesIO(report_bundle(results, project["classification"], provenance))
     # Ship actual receipt files under their cited names as well as the evidence index.
     with zipfile.ZipFile(target, "a", zipfile.ZIP_DEFLATED) as archive:
+        if project['data'].get('_study_kind')=='h3' and project['classification']=='synthetic_test':
+            from pathlib import Path
+            archive.writestr('synthetic_study_tracker.csv',project['data']['raw_tracker'].to_csv(index=False))
+            archive.writestr('orcca_audit/H3_DEMO_DICTIONARY.csv',Path(__file__).with_name('H3_DEMO_DICTIONARY.csv').read_text())
+            archive.writestr('orcca_audit/H3_DEMO_PROTOCOL.txt',Path(__file__).with_name('H3_DEMO_PROTOCOL.txt').read_text())
+            from .exports import safe_csv
+            archive.writestr('synthetic_completion_evidence.csv',safe_csv(project['completion_evidence'].drop(columns=['source_file','_source_row'],errors='ignore').to_dict('records')))
         for doc in bundle['documents']:
             if doc['evidence_kind']=='deterministic_receipt' and doc['source_file'] in {
-                f"workflow_{section}_{project['run_id'][:12]}.json" for section in ('consistency','annual','exposures','specifications')}:
+                f"workflow_{section}_{project['run_id'][:12]}.json" for section in set(project['results'])|{'annual'}}:
                 archive.writestr(doc['source_file'],doc['text'])
     return target.getvalue()

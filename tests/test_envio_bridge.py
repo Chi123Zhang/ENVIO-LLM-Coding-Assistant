@@ -91,6 +91,7 @@ def test_bridge_ui_cross_page_handoff_without_real_generation(monkeypatch):
     element(at.text_area,'Why this source and interpretation apply to ORCCA (English)').input('Synthetic software validation only')
     element(at.button,'Link candidate and create ORCCA version').click().run()
     assert not at.exception and at.session_state['workflow_project']['revision']==2
+    at.session_state['workflow_workspace']='Legacy data audit'
     at.switch_page('pages/04_ORCCA_Workflow.py').run()
     assert not at.exception
     at.button(key='workflow_draft').click().run()

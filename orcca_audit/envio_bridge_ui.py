@@ -30,6 +30,7 @@ def render(signature):
         st.info('Load your private ORCCA project in Workflow, then return here. Coding results stay in this browser session.')
         return
     st.caption('ENVIO labels are model outputs from its existing codebook, not validated ORCCA variables. Only an exact source quotation enters evidence search; labels and rationale stay in the separate review ledger. No new model call is made by this handoff.')
+    from .study import counties
     rows = capture['rows']
     if not rows:return
     selected = st.selectbox('Coded segment to link', range(len(rows)),
@@ -40,7 +41,7 @@ def render(signature):
     with st.form('envio_handoff_'+project['run_id']+'_'+capture['capture_id']):
         quote = st.text_area('Exact original quotation (must also occur in the source)')
         relevant = st.checkbox('I checked that this source concerns this ORCCA project, not an unrelated ENVIO participant')
-        county = st.selectbox('Applicable county (optional; human assigned)', ['']+sorted(set(project['data']['panel']['county'].astype(str))))
+        county = st.selectbox('Applicable county (optional; human assigned)', ['']+counties(project))
         month = st.text_input('Applicable event month (optional, YYYY-MM; not the interview date by default)')
         reviewer = st.text_input('Applicability reviewer')
         reason = st.text_area('Why this source and interpretation apply to ORCCA (English)')

@@ -1,0 +1,4 @@
+SYNTHETIC protocol for H3 workflow practice; not study evidence.
+Coalition process measures are not supplied in this practice project.
+Tracker status is a candidate mediator measure. No mediation effect is estimated.
+A synthetic source assertion for DEMO_A, January 2024, MOUD slot 1 is provided separately for human review: discontinued=0.

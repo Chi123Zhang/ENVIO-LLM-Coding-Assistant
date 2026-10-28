@@ -1,0 +1,5 @@
+Version,Variable / Field Name,Field Label,"Choices, Calculations, OR Slider Labels",Branching Logic (Show field only if...)
+SYNTHETIC_V1,hcs_orc209l_1,SYNTHETIC OEND implementation started,"0, No | 1, Yes",
+SYNTHETIC_V1,hcs_orc209v_1,SYNTHETIC OEND discontinued,"0, No | 1, Yes",
+SYNTHETIC_V1,hcs_orc210m_1,SYNTHETIC MOUD implementation started,"0, No | 1, Yes",
+SYNTHETIC_V1,hcs_orc210v_1,SYNTHETIC MOUD discontinued,"0, No | 1, Yes",

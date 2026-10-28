@@ -39,6 +39,11 @@ def render():
     project = current_project(st.session_state, private)
     if project:
         project_header(project)
+        if project['data'].get('_study_kind')=='h3':
+            from .study_ui import render_audit
+            render_audit(project)
+            st.page_link('pages/04_ORCCA_Workflow.py',label='Continue H3 study preparation')
+            return
     st.info("Local private mode: uploads stay in this session; external generation for uploaded research evidence is disabled."
         if private else "Public Demo · Every bundled value and document is synthetic. Do not upload ORCCA research data to this public app.")
     st.warning("Verified source checks, candidate-rule matches, model explanations and unknowns are different evidence levels. This app does not reproduce H2a or establish improved RAG accuracy.")
