@@ -17,6 +17,8 @@ def _evidence(doc):
     st.markdown(f"**{doc['source_file']}** · {kind}")
     page = f"Page {doc['page']}, " if doc.get("page") else ""
     st.caption(f"{page}lines/rows {doc['line_start']}–{doc['line_end']}")
+    if doc.get("text_version"):
+        st.caption(doc["text_version"])
     st.code(doc["text"], language=None)
     with st.expander("Exact source reference and checksum"):
         st.write(doc.get("locator", "See the page and row reference above."))
@@ -31,27 +33,50 @@ def render():
     st.sidebar.page_link("pages/02_ORCCA_Research_Findings.py", label="Research findings")
     st.sidebar.page_link("pages/03_ORCCA_Evidence_Completion.py", label="Evidence completion")
     private = private_uploads_allowed()
-    path = os.environ.get("ORCCA_FINDINGS_BUNDLE")
-    approved_hash = os.environ.get("ORCCA_PUBLIC_FINDINGS_SHA256")
-    if not path and not private:
-        from .public_review import bundled_public_review
-        path, approved_hash = bundled_public_review()
-    if not path:
-        st.info("No research review is configured. Demo results are not used as study findings.")
-        st.write("Research summaries require source checks and researcher review before publication.")
-        return
-    try:
-        bundle, digest = load_bundle(path, private_mode=private,
-            approved_sha256=approved_hash)
-    except (AuditError, OSError) as exc:
-        st.error(str(exc) if isinstance(exc, AuditError) else "The research review could not be read. No other data were substituted.")
-        return
-    st.info("Local research workspace. Source excerpts stay on this computer." if private else
-            "Public summary. Search covers approved summaries only; original study files are not published.")
-    st.caption(f"Reviewed {bundle.get('review_date', 'date not supplied')}")
+    from .workflow import current_project, findings_for_export
+    from .workflow_ui import navigation, project_header, render_review
+    navigation()
+    project = current_project(st.session_state, private)
+    use_current = False
+    if st.session_state.get("workflow_active"):
+        source = st.radio("Report source", ["Current web project", "Saved research review"], key="workflow_findings_source")
+        use_current = source == "Current web project"
+    if use_current:
+        if not project or not project.get("bundle"):
+            st.warning("No current draft findings. Load inputs and generate findings in Workflow; saved conclusions are not substituted.")
+            st.page_link("pages/04_ORCCA_Workflow.py", label="Open Workflow")
+            return
+        project_header(project)
+        bundle = findings_for_export(project)
+        import hashlib, json
+        digest = hashlib.sha256(json.dumps(bundle, sort_keys=True, default=str).encode()).hexdigest()
+    else:
+        path = os.environ.get("ORCCA_FINDINGS_BUNDLE")
+        approved_hash = os.environ.get("ORCCA_PUBLIC_FINDINGS_SHA256")
+        if not path and not private:
+            from .public_review import bundled_public_review
+            path, approved_hash = bundled_public_review()
+        if not path:
+            st.info("No research review is configured. Demo results are not used as study findings.")
+            st.write("Research summaries require source checks and researcher review before publication.")
+            return
+        try:
+            bundle, digest = load_bundle(path, private_mode=private,
+                approved_sha256=approved_hash)
+            from .english_export import english_results
+            bundle["documents"] = english_results({"evidence_excerpts": bundle["documents"]})["evidence_excerpts"]
+        except (AuditError, OSError) as exc:
+            st.error(str(exc) if isinstance(exc, AuditError) else "The research review could not be read. No other data were substituted.")
+            return
+    st.info(("Current synthetic practice project. These are not study findings." if bundle["classification"].startswith("synthetic") else
+             "Current private project: session data, not the saved research review.") if use_current else
+            ("Saved local research review. It is separate from current uploads." if private else
+             "Public summary. Search covers approved summaries only; original study files are not published."))
+    st.caption(("Draft generated " if use_current else "Reviewed ") + str(bundle.get('review_date', 'date not supplied')))
     with st.expander("Review version"):
         st.code(digest, language=None)
-    st.warning("These are data and methods checks. H2a has not been reproduced, and H3–H5 have not been tested.")
+    st.warning("H3 preparation only. No mediation effect has been estimated. H4 and H5 are deferred." if use_current and project['data'].get('_study_kind')=='h3'
+        else "These are data and methods checks. H2a has not been reproduced, and H3–H5 have not been tested.")
     if st.button("Reset search", key="findings_reset"):
         for key in list(st.session_state):
             if key.startswith("findings_") and key != "findings_reset":
@@ -70,12 +95,14 @@ def render():
     st.caption("Resets the question, query, search method and results. Findings and sources stay available.")
     if st.session_state.pop("findings_reset_notice", False):
         st.success("Search reset. Defaults restored and previous results cleared. Findings and sources are unchanged.")
-    tabs = st.tabs(["Findings", "Evidence search", "H3–H5 readiness", "Methods and evaluation", "Export"])
+    tabs = st.tabs(["Findings", "Evidence search", "H3 readiness" if use_current and project["data"].get("_study_kind")=="h3" else "H3–H5 readiness", "Methods and evaluation", "Export"])
     with tabs[0]:
         st.write("Each finding includes its basis, limits and supporting records.")
         for item in bundle["findings"]:
             st.subheader(item["finding_id"] + " · " + item["title"])
             st.caption(LEVELS[item["level"]])
+            if use_current:
+                st.caption("Review status: " + item.get("review_status", "pending"))
             st.write(item["statement"])
             st.markdown("**Basis:** " + item["verification_method"])
             st.markdown("**Limits:** " + item["limitations"])
@@ -84,6 +111,9 @@ def render():
             with st.expander("Sources and supporting records", expanded=False):
                 for doc in evidence_for(item, bundle):
                     _evidence(doc)
+        if use_current:
+            st.subheader("Review current findings")
+            render_review(project)
     retrieval_result = None
     with tabs[1]:
         questions = {q["question_id"]: q for q in bundle["questions"]}
@@ -108,7 +138,11 @@ def render():
         if st.button("Find supporting records", key="findings_retrieve"):
             try:
                 with st.spinner("Loading search models and finding records..." if backend == "hybrid" else "Finding records..."):
-                    result = retrieve(query, bundle["documents"], backend)
+                    if use_current and project['data'].get('_study_kind')=='h3':
+                        from .study import search
+                        result = search(query,bundle['documents'],backend)
+                    else:
+                        result = retrieve(query, bundle["documents"], backend)
             except Exception:
                 result = {"status": "retrieval_error_no_fallback", "backend": backend, "citations": []}
             st.session_state["findings_result"] = result
@@ -129,6 +163,8 @@ def render():
                     _evidence(doc)
         st.info("Check whether each passage supports the claim. This page does not call an external LLM or infer causal effects.")
     with tabs[2]:
+        if use_current and not bundle["hypotheses"]:
+            st.info("Current input checks do not test H3–H5. Add the relevant research plan and county-time process data before defining new analyses.")
         for h in bundle["hypotheses"]:
             st.subheader(h["hypothesis"] + " · " + h["definition"])
             st.markdown("**Available:** " + h["available"])
@@ -155,6 +191,16 @@ def render():
         st.write("Planned comparison: rules, an LLM without retrieval, and an LLM with retrieval. Two independent reviewers will label cases and resolve disagreements. Test splits should separate counties or documents; reference answers must stay out of the index.")
         st.caption("Pilot size is not the number of labelled cases. Software checks and research performance are reported separately.")
     with tabs[4]:
+        st.write("After extracting the ZIP, open START_HERE.html for the formatted English report. All exported text is English. Use evidence_index.csv for source locations; translated records are marked with original and translated text hashes.")
+        if use_current:
+            from .workflow import export_project
+            accepted_only = st.checkbox("Export accepted findings only", value=True, key="workflow_findings_accepted_only_" + project["run_id"])
+            try:
+                payload = export_project(project, accepted_only)
+                st.download_button("Download current project report", payload, "orcca_current_project.zip", "application/zip", key="workflow_findings_download")
+            except AuditError as exc:
+                st.info(str(exc))
+            return
         exported = {"research_findings": bundle["findings"], "hypotheses": bundle["hypotheses"],
             "evidence_excerpts": bundle["documents"],
             "sources": bundle["sources"], "human_evaluation": bundle.get("evaluation", {})}
@@ -164,4 +210,4 @@ def render():
             {"review_date": bundle.get("review_date"), "bundle_sha256": digest,
              "audit_run": bundle.get("audit_run", {})}),
             "orcca_research_findings.zip", "application/zip", key="findings_download")
-        st.caption("Local reports may contain study identifiers and excerpts. Original files are unchanged.")
+        st.caption("CSV and JSON files are technical exports. Local reports may contain private source text; share only with authorized researchers. Original files are unchanged.")

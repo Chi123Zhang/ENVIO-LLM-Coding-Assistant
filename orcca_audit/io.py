@@ -115,6 +115,37 @@ def extract_document(data, filename):
             raise
         except Exception as exc:
             raise AuditError("PDF extraction failed.") from exc
+    elif data.startswith(b"PK\x03\x04"):
+        import re
+        import xml.etree.ElementTree as ET
+        try:
+            with zipfile.ZipFile(BytesIO(data)) as archive:
+                if sum(x.file_size for x in archive.infolist()) > 100 * 1024 * 1024:
+                    raise AuditError("Document expansion exceeds the 100 MB limit.")
+                if any("vbaProject" in x for x in archive.namelist()):
+                    raise AuditError("Macro-enabled documents are not supported.")
+                if "word/document.xml" in archive.namelist():
+                    root = ET.fromstring(archive.read("word/document.xml"))
+                    ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+                    lines = ["".join(t.text or "" for t in p.iter(ns + "t")) for p in root.iter(ns + "p")]
+                    units.append({"text": "\n".join(lines), "page": None,
+                        "locator": "DOCX main-document paragraphs, including tables; no rendered page numbers"})
+                else:
+                    slides = sorted((x for x in archive.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", x)),
+                        key=lambda x: int(re.search(r"slide(\d+)", x).group(1)))
+                    if not slides:raise AuditError("Expected a DOCX or PPTX document.")
+                    ns = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+                    for path in slides:
+                        root = ET.fromstring(archive.read(path))
+                        text = "\n".join("".join(t.text or "" for t in p.iter(ns + "t")) for p in root.iter(ns + "p"))
+                        slide = int(re.search(r"slide(\d+)", path).group(1))
+                        if not text.strip():raise AuditError(f"No extractable text on slide {slide}; visual review is required.")
+                        units.append({"text": text, "page": None, "slide": slide, "locator": f"PPTX slide {slide}, extracted text paragraphs; images and notes are not interpreted"})
+                if not any(x['text'].strip() for x in units):raise AuditError("Document has no extractable text; visual review is required.")
+        except AuditError:
+            raise
+        except Exception as exc:
+            raise AuditError("Unable to extract DOCX/PPTX text.") from exc
     else:
         try:
             text = data.decode("utf-8-sig")
@@ -132,5 +163,6 @@ def extract_document(data, filename):
                 result.append({"source_file": name, "page": unit["page"], "line_start": start + 1,
                     "line_end": min(start + 16, len(lines)), "text": text,
                     "sha256": hashlib.sha256(text.encode()).hexdigest(), "classification": "private_local",
-                    "chunk_id": f"{hashlib.sha256(data).hexdigest()[:12]}:{unit['page']}:{start + 1}"})
+                    "chunk_id": f"{hashlib.sha256(data).hexdigest()[:12]}:{unit.get('slide', unit['page'])}:{start + 1}",
+                    **({"locator": unit["locator"], "slide": unit.get("slide")} if "locator" in unit else {})})
     return result

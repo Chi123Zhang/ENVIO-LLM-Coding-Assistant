@@ -1365,7 +1365,19 @@ user_id = st.sidebar.text_input("User ID", value="demo_user")
 query = st.text_area("Enter your question or coding instruction (optional)", height=120)
 
 
+# ORCCA additive bridge: fingerprint current inputs without running a model.
+from orcca_audit.envio_bridge import input_signature, capture_run
+_envio_bridge_settings = {"user_id": user_id, "mode": mode, "query": query,
+    "use_rag_context": use_rag_context, "paired_comparison": run_rag_comparison,
+    "codebook": CODEBOOK, "model": "gpt-4o-mini", "merge_related_files": merge_related_files,
+    "human_alignment": use_human_segments_for_alignment,
+    "human_file_sha": input_signature([human_coding_file] if human_coding_file else [], "", {}),
+    "role": manual_role, "infer_profile": use_resume_profile, "manual_override": allow_manual_override}
+_envio_bridge_signature = input_signature(uploaded_files, url_input, _envio_bridge_settings)
+
 if st.button("Run"):
+    # A failed or new run cannot leave an earlier coding run eligible for transfer.
+    st.session_state.pop("envio_orcca_capture", None)
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         st.error("OPENAI_API_KEY not set.")
@@ -1631,6 +1643,9 @@ if st.button("Run"):
 
         if all_outputs:
             summary_df = pd.concat(all_outputs, ignore_index=True)
+            # Capture existing private-session outputs only; no extra API call.
+            capture_run(st.session_state, summary_df, source_records,
+                _envio_bridge_signature, _envio_bridge_settings)
             summary_csv = os.path.join(user_output_dir, "batch_summary_coding.csv")
             summary_df.to_csv(summary_csv, index=False)
             generated_files.append(summary_csv)
@@ -1883,3 +1898,7 @@ if st.button("Run"):
             "rag_context_char_limit": RAG_CONTEXT_CHAR_LIMIT,
             "contextual_rag_window_size": 1,
         })
+
+# Additive ORCCA handoff, rendered independently of the Run button rerun.
+from orcca_audit.envio_bridge_ui import render as render_orcca_handoff
+render_orcca_handoff(_envio_bridge_signature)
