@@ -128,6 +128,8 @@ def render():
     with tabs[2]:
         render_search(project)
         st.caption(project['data'].get('completion_status','Status completion unavailable.'))
+        from .pilot_ui import render as render_pilot
+        render_pilot(project)
     with tabs[3]:
         if st.button('Generate current study findings',key='study_draft'):
             build_findings(project);st.success('Draft preparation findings generated. Review each one; no H3 effect was estimated.')

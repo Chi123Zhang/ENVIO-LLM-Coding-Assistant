@@ -20,7 +20,7 @@ def invalidate(state, reason="Inputs changed. Run the audit again."):
     state["workflow_invalid_reason"] = reason
     state.pop("workflow_project", None)
     for key in list(state):
-        if key.startswith(("findings_", "completion_", "orcca_retrieval", "orcca_explanation", "study_search_result")):
+        if key.startswith(("findings_", "completion_", "orcca_retrieval", "orcca_explanation", "study_search_result", "pilot_")):
             del state[key]
 
 
