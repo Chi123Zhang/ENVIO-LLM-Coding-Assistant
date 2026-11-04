@@ -54,8 +54,8 @@ def render_search(project):
     st.button('Reset evidence query',key='study_reset_query',on_click=_reset_search)
     st.write('For a missing status, open Evidence Completion, inspect the candidate and its source, and record an explicit review decision.')
     st.page_link('pages/03_ORCCA_Evidence_Completion.py',label='Review source-backed completion candidates')
-    st.page_link('app.py',label='Optional: review an authorized ENVIO coding result')
-    st.caption("Interviews, minutes and attendance remain auxiliary. Reuse Eric's existing work where available. No generic ENVIO label becomes a validated H3 measure automatically.")
+    st.page_link('app.py',label='Optional: review an authorized document coding result')
+    st.caption("Interviews, minutes and attendance remain auxiliary. Reuse Eric's existing work where available. Generic coding labels do not become validated H3 measures automatically.")
 
 
 def render():

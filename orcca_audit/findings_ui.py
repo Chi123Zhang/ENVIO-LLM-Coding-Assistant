@@ -28,7 +28,7 @@ def _evidence(doc):
 def render():
     st.title("ORCCA Research Findings")
     st.caption("Findings from the supplied materials, with evidence and open questions.")
-    st.sidebar.page_link("app.py", label="ENVIO Interview Coding")
+    st.sidebar.page_link("app.py", label="Document Coding")
     st.sidebar.page_link("pages/01_ORCCA_Research_Audit.py", label="Data audit")
     st.sidebar.page_link("pages/02_ORCCA_Research_Findings.py", label="Research findings")
     st.sidebar.page_link("pages/03_ORCCA_Evidence_Completion.py", label="Evidence completion")

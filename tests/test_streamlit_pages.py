@@ -14,7 +14,7 @@ def test_original_page_and_orcca_demo_render_without_key(monkeypatch):
     monkeypatch.delenv("ORCCA_DEPLOYMENT_MODE", raising=False)
     at = app()
     assert not at.exception
-    assert at.title[0].value == "ENVIO LLM Coding Assistant"
+    assert at.title[0].value == "ORCCA Research Assistant"
     assert at.sidebar.selectbox[0].options == ["coding", "qa", "summary"]
     at.switch_page("pages/01_ORCCA_Research_Audit.py").run()
     assert not at.exception
@@ -29,7 +29,7 @@ def test_original_page_and_orcca_demo_render_without_key(monkeypatch):
     assert len(at.get("download_button")) >= 2
     at.switch_page("app.py").run()
     assert not at.exception
-    assert at.title[0].value == "ENVIO LLM Coding Assistant"
+    assert at.title[0].value == "ORCCA Research Assistant"
 
 
 def test_local_private_upload_controls_require_both_operator_flags(monkeypatch):

@@ -28,7 +28,7 @@ def _show_rows(rows):
 def render():
     st.title("ORCCA Research Audit")
     st.caption("Source-linked data and measurement review · No model fitting")
-    st.sidebar.page_link("app.py", label="ENVIO Interview Coding")
+    st.sidebar.page_link("app.py", label="Document Coding")
     st.sidebar.page_link("pages/01_ORCCA_Research_Audit.py", label="ORCCA Research Audit")
     st.sidebar.page_link("pages/02_ORCCA_Research_Findings.py", label="Research findings")
     st.sidebar.page_link("pages/03_ORCCA_Evidence_Completion.py", label="Evidence completion")
