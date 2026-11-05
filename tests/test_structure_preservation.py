@@ -8,6 +8,17 @@ APP_ADDITION = ('st.sidebar.page_link("app.py", label="ENVIO Interview Coding")\
     'st.sidebar.page_link("pages/01_ORCCA_Research_Audit.py", label="ORCCA Research Audit")\n'
     'st.sidebar.caption("ENVIO workspace: authorized interview materials only. Do not upload ORCCA research files to this public page.")\n')
 BRIDGE_ADDITIONS = ['# ORCCA additive bridge: fingerprint current inputs without running a model.\nfrom orcca_audit.envio_bridge import input_signature, capture_run\n_envio_bridge_settings = {"user_id": user_id, "mode": mode, "query": query,\n    "use_rag_context": use_rag_context, "paired_comparison": run_rag_comparison,\n    "codebook": CODEBOOK, "model": "gpt-4o-mini", "merge_related_files": merge_related_files,\n    "human_alignment": use_human_segments_for_alignment,\n    "human_file_sha": input_signature([human_coding_file] if human_coding_file else [], "", {}),\n    "role": manual_role, "infer_profile": use_resume_profile, "manual_override": allow_manual_override}\n_envio_bridge_signature = input_signature(uploaded_files, url_input, _envio_bridge_settings)\n\n', '    # A failed or new run cannot leave an earlier coding run eligible for transfer.\n    st.session_state.pop("envio_orcca_capture", None)\n', '            # Capture existing private-session outputs only; no extra API call.\n            capture_run(st.session_state, summary_df, source_records,\n                _envio_bridge_signature, _envio_bridge_settings)\n', '\n# Additive ORCCA handoff, rendered independently of the Run button rerun.\nfrom orcca_audit.envio_bridge_ui import render as render_orcca_handoff\nrender_orcca_handoff(_envio_bridge_signature)\n']
+# Explicit display-only changes; reverse these before checking original bytes.
+BRANDING_REPLACEMENTS = [
+    ('page_title="ENVIO LLM Coding Assistant"', 'page_title="ORCCA Research Assistant"'),
+    ('st.title("ENVIO LLM Coding Assistant")', 'st.title("ORCCA Research Assistant")'),
+    ('st.caption("Document-grounded LLM coding, topic modeling, and LLM-human coding comparison for ENVIO transcripts")',
+     'st.caption("Data review and source-linked evidence for ORCCA research. Start with the H3 study workflow.")\nst.page_link("pages/04_ORCCA_Workflow.py", label="Open H3 study workflow")\nst.subheader("Document Coding (optional)")'),
+    ('label="ENVIO Interview Coding"', 'label="Document Coding"'),
+    ('ENVIO workspace: authorized interview materials only. Do not upload ORCCA research files to this public page.',
+     'Document coding: authorized materials only. Do not upload ORCCA research files to this public page.'),
+    ('Paragraph("ENVIO LLM Coding Summary Report",', 'Paragraph("Qualitative Coding Summary Report",'),
+]
 REQ_ADDITION = '\n# ORCCA local-private workbook parsing; no study data or model configuration.\nopenpyxl>=3.1.5,<4\n'
 
 
@@ -19,11 +30,19 @@ def test_all_existing_files_preserved_except_documented_additions():
         assert p.is_file(), f"Original file missing: {name}"
         data = p.read_bytes()
         if name == "app.py":
+            for old, new in BRANDING_REPLACEMENTS:
+                assert data.count(new.encode()) == 1, "Unexpected display-name modification"
+                data = data.replace(new.encode(), old.encode(), 1)
             assert APP_ADDITION.encode() in data
             data = data.replace(APP_ADDITION.encode(), b"", 1)
             for block in BRIDGE_ADDITIONS:
                 assert data.count(block.encode()) == 1, 'Unexpected bridge modification'
                 data = data.replace(block.encode(), b'', 1)
+        elif name == "README.md":
+            intro = '\nCurrent focus: a question-first ORCCA research workspace. Define a question, inspect source requirements, retrieve evidence, review candidates and export versioned findings. Public demonstrations use synthetic data only.\n\nStart with [ORCCA Workflow](https://expression-4wfrtnmolvi6ksdsst2h3c.streamlit.app/ORCCA_Workflow). Read the [workflow guide](docs/QUESTION_FIRST_WORKFLOW.md) and [local-model demonstration notes](docs/LOCAL_MODEL_DEMO.md). The original document-coding tools remain available; the historical project description follows below.\n'
+            assert data.count(intro.encode()) == 1
+            data = data.replace(intro.encode(), b"", 1)
+            data = data.replace(b"# ORCCA Research Assistant", b"# ENVIO LLM Coding Assistant", 1)
         elif name == "requirements.txt":
             assert data.endswith(REQ_ADDITION.encode())
             data = data[:-len(REQ_ADDITION.encode())]

@@ -1,4 +1,8 @@
-# ENVIO LLM Coding Assistant
+# ORCCA Research Assistant
+
+Current focus: a question-first ORCCA research workspace. Define a question, inspect source requirements, retrieve evidence, review candidates and export versioned findings. Public demonstrations use synthetic data only.
+
+Start with [ORCCA Workflow](https://expression-4wfrtnmolvi6ksdsst2h3c.streamlit.app/ORCCA_Workflow). Read the [workflow guide](docs/QUESTION_FIRST_WORKFLOW.md) and [local-model demonstration notes](docs/LOCAL_MODEL_DEMO.md). The original document-coding tools remain available; the historical project description follows below.
 
 A retrieval-grounded qualitative analysis framework for transcript coding, implementation-science synthesis, and stakeholder-adaptive evidence organization using Large Language Models (LLMs).
 

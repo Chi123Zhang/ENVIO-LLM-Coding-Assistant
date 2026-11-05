@@ -146,4 +146,4 @@ def test_findings_page_retrieves_raw_evidence_and_invalidates_stale_results(monk
     assert any("SYNTHETIC status remains unknown" in x.value for x in at.markdown)
     assert not any("Search status" in str(x.value) for x in at.markdown)
     at.switch_page("app.py").run()
-    assert not at.exception and at.title[0].value == "ENVIO LLM Coding Assistant"
+    assert not at.exception and at.title[0].value == "ORCCA Research Assistant"

@@ -154,4 +154,4 @@ def test_completion_public_ui_end_to_end_without_uploads(monkeypatch):
     selection = at.selectbox(key="completion_issue_" + at.session_state["completion_run"])
     assert all("SYNTHETIC_REPLACEMENT" in option for option in selection.options)
     at.switch_page("app.py").run()
-    assert not at.exception and at.title[0].value == "ENVIO LLM Coding Assistant"
+    assert not at.exception and at.title[0].value == "ORCCA Research Assistant"

@@ -20,7 +20,7 @@ def invalidate(state, reason="Inputs changed. Run the audit again."):
     state["workflow_invalid_reason"] = reason
     state.pop("workflow_project", None)
     for key in list(state):
-        if key.startswith(("findings_", "completion_", "orcca_retrieval", "orcca_explanation", "study_search_result", "pilot_")):
+        if key.startswith(("findings_", "completion_", "orcca_retrieval", "orcca_explanation", "study_search_result", "pilot_", "model_demo_")):
             del state[key]
 
 
@@ -35,6 +35,9 @@ def current_project(state, private):
 def start_project(state, data, documents, completion_evidence, manifest, private=False, parent=None, ledger=None):
     revision = state.get("workflow_revision", 0) + 1
     snapshot = {k: (v.copy(deep=True) if isinstance(v, pd.DataFrame) else deepcopy(v)) for k, v in data.items()}
+    if snapshot.get('_study_kind') == 'h3':
+        from .research_plan import normalize, DEFAULT
+        snapshot['research_plan'] = normalize(snapshot.get('research_plan', state.get('research_plan_saved', DEFAULT)))
     inputs = digest([manifest, {k: v.to_json(orient="split", date_format="iso") if isinstance(v, pd.DataFrame) else v
         for k, v in snapshot.items()}, documents,
         completion_evidence.to_json(orient="split") if completion_evidence is not None else None])

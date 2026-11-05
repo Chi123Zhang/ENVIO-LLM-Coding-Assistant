@@ -1,0 +1,84 @@
+"""Generate the public recording from hardcoded fictional inputs only.
+
+Optional local dependency: llama-cpp-python==0.3.36. Never runs in Streamlit.
+"""
+import argparse
+from copy import deepcopy
+import ctypes
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from orcca_audit.model_review import fixture, retrieve_fixture, digest, SYSTEM, SCHEMA, validate_reply
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model-path', type=Path, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    args = parser.parse_args()
+    if args.output.exists(): raise SystemExit('Output exists. Choose a new recording path.')
+    os.environ['HF_HUB_OFFLINE'] = '1'
+    os.environ['TRANSFORMERS_OFFLINE'] = '1'
+    import llama_cpp
+    from llama_cpp import Llama, llama_cpp as capi
+    default = capi.llama_model_default_params
+    devices = (ctypes.c_void_p * 1)(None)
+    def cpu_params():
+        p = default(); p.devices = ctypes.cast(devices, ctypes.c_void_p).value; return p
+    capi.llama_model_default_params = cpu_params
+    try:
+        model = Llama(model_path=str(args.model_path), n_ctx=4096, n_threads=4,
+                      n_gpu_layers=0, offload_kqv=False, op_offload=False, seed=20261106,
+                      n_batch=128, verbose=False)
+    finally: capi.llama_model_default_params = default
+    network_events = []
+    def audit(event, params):
+        if event in {'socket.connect', 'socket.getaddrinfo'}:
+            network_events.append(event); raise PermissionError('Network disabled during local inference.')
+    sys.addaudithook(audit)
+    runs = retrieve_fixture()
+    for i, r in enumerate(runs):
+        before = time.perf_counter()
+        schema = deepcopy(SCHEMA)
+        schema['properties']['case_id']['enum'] = [r['case_id']]
+        model.reset()
+        response = model.create_chat_completion(messages=[{'role': 'system', 'content': SYSTEM},
+            {'role': 'user', 'content': json.dumps(r['payload'], ensure_ascii=False)}],
+            temperature=0, top_p=1, seed=20261106 + i, max_tokens=512,
+            response_format={'type': 'json_object', 'schema': schema})
+        raw = response['choices'][0]['message']['content']
+        print(json.dumps({'case_id': r['case_id'], 'raw_response': raw}), flush=True)
+        output = json.loads(raw)
+        flags = validate_reply(output, r['case_id'], r['payload']['evidence'])
+        r.update(raw_response=raw, output=output, payload_sha256=digest(r['payload']),
+                 review_flags=flags, usage=response.get('usage'),
+                 finish_reason=response['choices'][0]['finish_reason'], elapsed_seconds=time.perf_counter()-before)
+        print(r['case_id'] + ': ' + output['status'], flush=True)
+    h = hashlib.sha256()
+    with args.model_path.open('rb') as f:
+        for b in iter(lambda: f.read(8*1024*1024), b''): h.update(b)
+    record = {'classification': 'synthetic_public', 'fixture_sha256': digest(fixture()),
+        'prompt_sha256': digest({'system': SYSTEM, 'schema': schema}),
+        'provenance': {'model': args.model_path.name, 'model_sha256': h.hexdigest(),
+            'runtime': 'llama-cpp-python', 'runtime_version': llama_cpp.__version__, 'device': 'local CPU',
+            'temperature': 0, 'top_p': 1, 'max_tokens': 512, 'n_ctx': 4096, 'n_threads': 4,
+            'seeds': [20261106+i for i in range(3)], 'gpu_devices': 'explicit empty list',
+            'n_gpu_layers': 0, 'offload_kqv': False, 'op_offload': False,
+            'generated_at_utc': datetime.now(timezone.utc).isoformat(),
+            'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            'retrieval_backend': 'ENVIO BM25', 'network_attempts': network_events,
+            'external_model_calls': 0, 'human_labels': 0, 'data_values_changed': 0,
+            'scope': 'Three handwritten fictional development examples; no research performance evaluation.'},
+        'runs': runs}
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(record, indent=2, ensure_ascii=False) + '\n')
+    model.close()
+
+
+if __name__ == '__main__': main()

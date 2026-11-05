@@ -58,7 +58,9 @@ def audit(data):
         'next_step':'Confirm outcome query definition, follow-up, population and suppression. Do not reconstruct hidden deaths.'},
         {'path_component':'Temporal order and identification','availability':'Not established',
         'next_step':'Specify X before M before Y and confounders. Repeated county records are not independent counties.'}]
+    from .research_plan import requirements, normalize, DEFAULT
     result={'structure':structure,'field_review':profiles,'h3_readiness':readiness,
+        'research_plan':normalize(data.get('research_plan', DEFAULT)), 'question_requirements':requirements(data),
         'scope':{'hypothesis':'H3 only','mediation_estimated':False,'external_llm_calls':0,'h4_h5':'Deferred',
         'coalition_measures_supplied':measures,'completion_status':data.get('completion_status','Unavailable')}}
     if 'tracker' in data:
@@ -174,8 +176,17 @@ def build_findings(project):
     missing=sum(not x['definition_found'] for x in r['field_review'])
     add('field_review','Version-specific measurement review',f"{len(r['field_review'])} representative slot-1 field-version definitions were screened; {missing} were not found in the supplied dictionary.",
         'Missing definitions can reflect instrument versions, metadata or incomplete documentation. Raw blanks are not automatically missing; branching is not evaluated.', 'method_review',r['field_review'])
-    add('h3_readiness','H3 remains a research question','The proposed path is coalition process → EBP implementation or reach → later overdose outcome. Temporal ordering and causal identification remain unestablished.',
+    plan = r['research_plan']
+    if plan['mode'] == 'H3 mediation preparation':
+        add('h3_readiness','H3 remains a research question','The proposed path is coalition process → EBP implementation or reach → later overdose outcome. Temporal ordering and causal identification remain unestablished.',
         'These materials do not establish a mediation effect. Dictionary definitions and retrieved passages cannot supply unobserved process measures or outcomes.', 'insufficient_material',r['h3_readiness'])
+    else:
+        add('h3_readiness', 'Saved question remains unevaluated', 'This route inventories source coverage and open questions. It does not test the saved hypothesis.',
+            'The researcher must confirm measurement definitions and an analysis design. No model is fitted.', 'insufficient_material', r['question_requirements'])
+    add('question_requirements', 'Requirements for the saved research question',
+        f"{len(r['question_requirements'])} source and design requirements were inventoried for the saved planning question. Presence of a file is not validation of a measure.",
+        'The question is researcher supplied. Required measures, source applicability and identification still need review. No hypothesis was tested.',
+        'method_review', r['question_requirements'])
     for i,record in enumerate(project['data'].get('implementation_evidence',[]),1):
         findings.append({'finding_id':'I'+str(i),'title':'Linked implementation interpretation',
             'statement':'Candidate ENVIO codes: '+record['envio_codes']+'. Applicability note: '+record['applicability_reason'],
@@ -185,10 +196,10 @@ def build_findings(project):
     for d in project['documents']:
         d=deepcopy(d);d.setdefault('source_id',d['source_file']);d.setdefault('evidence_kind','original_excerpt');d.setdefault('line_end',d['line_start']);docs.append(d)
     sources=[{'source_id':name,'source_file':name} for name in dict.fromkeys(d['source_id'] for d in docs)]
-    hypotheses=[{'hypothesis':'H3','definition':'Coalition processes influence overdose outcomes through EBP deployment and reach.',
+    hypotheses=[{'hypothesis':plan['hypothesis'],'definition':plan['question'],
         'available':'Tracker implementation candidates; optional supplied source tables.',
-        'missing':'Validated X and M, later Y, confounders and defensible temporal ordering.',
-        'next_step':'Review one prespecified pathway before estimating effects.'}]
+        'missing':'; '.join(x['component']+': '+x['status'] for x in r['question_requirements'] if x['status']!='Supplied'),
+        'next_step':'Review the saved question and source requirements before estimating effects. User-entered definitions are planning metadata, not findings.'}]
     bundle={'schema_version':'1.0','classification':project['classification'],'review_date':datetime.fromisoformat(project['created_at_utc']).astimezone(ZoneInfo('Asia/Shanghai')).date().isoformat(),
         'findings':findings,'documents':docs,'sources':sources,'questions':[],'hypotheses':hypotheses,
         'evaluation':{'human_labelled_cases':0,'improvement_measured':False},

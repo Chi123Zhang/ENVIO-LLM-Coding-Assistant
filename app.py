@@ -30,12 +30,14 @@ except Exception:
     generate_role_adaptive_thematic_summary = None
 
 
-st.set_page_config(page_title="ENVIO LLM Coding Assistant", layout="wide")
-st.title("ENVIO LLM Coding Assistant")
-st.caption("Document-grounded LLM coding, topic modeling, and LLM-human coding comparison for ENVIO transcripts")
-st.sidebar.page_link("app.py", label="ENVIO Interview Coding")
+st.set_page_config(page_title="ORCCA Research Assistant", layout="wide")
+st.title("ORCCA Research Assistant")
+st.caption("Data review and source-linked evidence for ORCCA research. Start with the H3 study workflow.")
+st.page_link("pages/04_ORCCA_Workflow.py", label="Open H3 study workflow")
+st.subheader("Document Coding (optional)")
+st.sidebar.page_link("app.py", label="Document Coding")
 st.sidebar.page_link("pages/01_ORCCA_Research_Audit.py", label="ORCCA Research Audit")
-st.sidebar.caption("ENVIO workspace: authorized interview materials only. Do not upload ORCCA research files to this public page.")
+st.sidebar.caption("Document coding: authorized materials only. Do not upload ORCCA research files to this public page.")
 
 
 CODEBOOK = [
@@ -1132,7 +1134,7 @@ def generate_pdf_report(summary_df, code_counts, group_counts=None, topic_df=Non
     styles = getSampleStyleSheet()
     story = []
 
-    story.append(Paragraph("ENVIO LLM Coding Summary Report", styles["Title"]))
+    story.append(Paragraph("Qualitative Coding Summary Report", styles["Title"]))
     story.append(Spacer(1, 12))
 
     story.append(Paragraph(f"Total coded segments: {len(summary_df)}", styles["Normal"]))

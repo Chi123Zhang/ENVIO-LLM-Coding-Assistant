@@ -48,6 +48,10 @@ def project_header(project):
         + ("Private session" if project['classification'] == 'private_research' else 'Synthetic practice'))
     st.caption("Tracker → data review → source evidence → human review → H3 preparation findings → export" if project['data'].get('_study_kind')=='h3'
         else "Upload → audit → evidence completion → rerun → findings review → export")
+    if project['data'].get('research_plan'):
+        plan = project['data']['research_plan']
+        st.write('**Saved question (' + plan['hypothesis'] + '):** ' + plan['question'])
+        st.caption('Question and data are bound to this project version. Planning text is not supporting evidence.')
     st.page_link("pages/04_ORCCA_Workflow.py", label="Manage inputs and project versions")
 
 
@@ -130,7 +134,7 @@ def _render_legacy():
     st.title('ORCCA Project Workflow')
     st.caption('One browser session, versioned inputs, linked audit and review. No effect models or external LLM calls.')
     navigation()
-    st.sidebar.page_link('app.py',label='ENVIO coding → ORCCA evidence')
+    st.sidebar.page_link('app.py',label='Document coding → source evidence')
     for file,label in [('01_ORCCA_Research_Audit.py','Data audit'),('02_ORCCA_Research_Findings.py','Research findings'),('03_ORCCA_Evidence_Completion.py','Evidence completion')]:
         st.sidebar.page_link('pages/'+file,label=label)
     private = private_uploads_allowed()
@@ -203,7 +207,7 @@ def _render_legacy():
             else:st.dataframe(pd.DataFrame(value),hide_index=True)
         st.page_link('pages/01_ORCCA_Research_Audit.py',label='Open detailed audit with these inputs')
     with tabs[2]:
-        st.page_link('app.py', label='Link an existing ENVIO coding result to this project')
+        st.page_link('app.py', label='Link an existing document coding result to this project')
         st.caption('Private workspace only: exact source quotations can support implementation candidates after explicit relevance review. ENVIO labels are not automatically ORCCA variables or missing-value replacements.')
         if project['data'].get('implementation_evidence'):
             st.dataframe(pd.DataFrame(project['data']['implementation_evidence'])[['source_file','envio_codes','county','applicable_month','scope_status','status']],hide_index=True)

@@ -1,0 +1,326 @@
+{
+  "classification": "synthetic_public",
+  "fixture_sha256": "deab08b44db8c5895076bbeee673464c2640d09115cc7e7d130d46045b8341af",
+  "prompt_sha256": "f9823cf0d47b31b7b45e296796ae2510cc68f861de2f9a0aa69b9b43d245d82e",
+  "provenance": {
+    "model": "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+    "model_sha256": "65b8fcd92af6b4fefa935c625d1ac27ea29dcb6ee14589c55a8f115ceaaa1423",
+    "runtime": "llama-cpp-python",
+    "runtime_version": "0.3.36",
+    "device": "local CPU",
+    "temperature": 0,
+    "top_p": 1,
+    "max_tokens": 512,
+    "n_ctx": 4096,
+    "n_threads": 4,
+    "seeds": [
+      20261106,
+      20261107,
+      20261108
+    ],
+    "gpu_devices": "explicit empty list",
+    "n_gpu_layers": 0,
+    "offload_kqv": false,
+    "op_offload": false,
+    "generated_at_utc": "2026-11-05T19:29:42.741349+00:00",
+    "script_sha256": "7b60ce9f5d249c5fe5fb57b01762aca4f8f356ea215fa0dbdf71c737a982a05d",
+    "retrieval_backend": "ENVIO BM25",
+    "network_attempts": [],
+    "external_model_calls": 0,
+    "human_labels": 0,
+    "data_values_changed": 0,
+    "scope": "Three handwritten fictional development examples; no research performance evaluation.",
+    "executed_script_source": "docs/provenance/recording_generator_v1.py.txt",
+    "manifest_note": "The original generator fingerprinted the final case-specific response schema. That exact script and fingerprint are preserved. The current runner fixes the metadata fingerprint; raw model responses were not changed."
+  },
+  "runs": [
+    {
+      "case_id": "DEMO_DATE",
+      "payload": {
+        "case_id": "DEMO_DATE",
+        "question": "When did DEMO_A NALOX_ALPHA start distributing kits? Distinguish planning from implementation.",
+        "evidence": [
+          {
+            "chunk_id": "A2",
+            "county": "DEMO_A",
+            "source_file": "synthetic_model_sources.txt",
+            "line_start": 2,
+            "line_end": 2,
+            "locator": "Line 2",
+            "classification": "synthetic_public",
+            "role": "source",
+            "text": "DEMO_A / NALOX_ALPHA: A planning meeting was held in February 2025. Planning is separate from implementation.",
+            "sha256": "e678f8d5744e28a7627c9e07bd8514a88a00a4c2c004ca93d8b90dbeccac2875",
+            "score": -0.09941095753077275
+          },
+          {
+            "chunk_id": "A1",
+            "county": "DEMO_A",
+            "source_file": "synthetic_model_sources.txt",
+            "line_start": 1,
+            "line_end": 1,
+            "locator": "Line 1",
+            "classification": "synthetic_public",
+            "role": "source",
+            "text": "DEMO_A / NALOX_ALPHA: The program began distributing kits on 2025-04-15.",
+            "sha256": "7ec6a4b313ad140cdf79fec59bdaad5380c641c8f17d4eab283ce85fc5ecd149",
+            "score": -0.12245040691558703
+          }
+        ]
+      },
+      "retrieval": {
+        "status": "retrieved_evidence_unreviewed",
+        "backend": "bm25",
+        "citations": [
+          {
+            "chunk_id": "A2",
+            "county": "DEMO_A",
+            "source_file": "synthetic_model_sources.txt",
+            "line_start": 2,
+            "line_end": 2,
+            "locator": "Line 2",
+            "classification": "synthetic_public",
+            "role": "source",
+            "text": "DEMO_A / NALOX_ALPHA: A planning meeting was held in February 2025. Planning is separate from implementation.",
+            "sha256": "e678f8d5744e28a7627c9e07bd8514a88a00a4c2c004ca93d8b90dbeccac2875",
+            "score": -0.09941095753077275
+          },
+          {
+            "chunk_id": "A1",
+            "county": "DEMO_A",
+            "source_file": "synthetic_model_sources.txt",
+            "line_start": 1,
+            "line_end": 1,
+            "locator": "Line 1",
+            "classification": "synthetic_public",
+            "role": "source",
+            "text": "DEMO_A / NALOX_ALPHA: The program began distributing kits on 2025-04-15.",
+            "sha256": "7ec6a4b313ad140cdf79fec59bdaad5380c641c8f17d4eab283ce85fc5ecd149",
+            "score": -0.12245040691558703
+          }
+        ],
+        "explanation_kind": "extractive_evidence_not_model_explanation"
+      },
+      "raw_response": "{\"case_id\": \"DEMO_DATE\", \"status\": \"insufficient_evidence\", \"answer\": \"unknown\", \"proposed_start_month\": \"\" , \"evidence\": [{\"chunk_id\": \"A1\", \"quote\": \"DEMO_A / NALOX_ALPHA: The program began distributing kits on 2025-04-15.\"}, {\"chunk_id\": \"A2\", \"quote\": \"DEMO_A / NALOX_ALPHA: A planning meeting was held in February 2025. Planning is separate from implementation.\"} ] , \"limitations\": [\"The evidence distinguishes planning from implementation but does not specify the exact start of distribution, making it unclear if the planning meeting in February 2025 was part of the distribution process or a separate event.\"]}",
+      "output": {
+        "case_id": "DEMO_DATE",
+        "status": "insufficient_evidence",
+        "answer": "unknown",
+        "proposed_start_month": "",
+        "evidence": [
+          {
+            "chunk_id": "A1",
+            "quote": "DEMO_A / NALOX_ALPHA: The program began distributing kits on 2025-04-15."
+          },
+          {
+            "chunk_id": "A2",
+            "quote": "DEMO_A / NALOX_ALPHA: A planning meeting was held in February 2025. Planning is separate from implementation."
+          }
+        ],
+        "limitations": [
+          "The evidence distinguishes planning from implementation but does not specify the exact start of distribution, making it unclear if the planning meeting in February 2025 was part of the distribution process or a separate event."
+        ]
+      },
+      "payload_sha256": "f19244baa7b406a3bafebcc7f13329e45f50f16870eb3f3a6114a82678c05972",
+      "review_flags": [],
+      "usage": {
+        "prompt_tokens": 488,
+        "completion_tokens": 168,
+        "total_tokens": 656
+      },
+      "finish_reason": "stop",
+      "elapsed_seconds": 21.73068187502213
+    },
+    {
+      "case_id": "DEMO_UNKNOWN",
+      "payload": {
+        "case_id": "DEMO_UNKNOWN",
+        "question": "What actual implementation start month is documented for DEMO_B MOUD_BETA? Is hoped-for launch sufficient?",
+        "evidence": [
+          {
+            "chunk_id": "B1",
+            "county": "DEMO_B",
+            "source_file": "synthetic_model_sources.txt",
+            "line_start": 3,
+            "line_end": 3,
+            "locator": "Line 3",
+            "classification": "synthetic_public",
+            "role": "source",
+            "text": "DEMO_B / MOUD_BETA: Funding was approved in May 2025. The team hoped to launch in June, but no actual start date was recorded.",
+            "sha256": "14bff420e724da2ec986d490964f30086a09e1b3fa44480b5c4b834869a568f8",
+            "score": -0.09920393223850511
+          },
+          {
+            "chunk_id": "B2",
+            "county": "DEMO_B",
+            "source_file": "synthetic_model_sources.txt",
+            "line_start": 4,
+            "line_end": 4,
+            "locator": "Line 4",
+            "classification": "synthetic_public",
+            "role": "source",
+            "text": "DEMO_B / MOUD_BETA: The next report requests confirmation of implementation status.",
+            "sha256": "b9b32e83750c9d7d67941719cbeef5faca6f6844eea229e493a70930d5e9ae25",
+            "score": -0.13666555699989866
+          }
+        ]
+      },
+      "retrieval": {
+        "status": "retrieved_evidence_unreviewed",
+        "backend": "bm25",
+        "citations": [
+          {
+            "chunk_id": "B1",
+            "county": "DEMO_B",
+            "source_file": "synthetic_model_sources.txt",
+            "line_start": 3,
+            "line_end": 3,
+            "locator": "Line 3",
+            "classification": "synthetic_public",
+            "role": "source",
+            "text": "DEMO_B / MOUD_BETA: Funding was approved in May 2025. The team hoped to launch in June, but no actual start date was recorded.",
+            "sha256": "14bff420e724da2ec986d490964f30086a09e1b3fa44480b5c4b834869a568f8",
+            "score": -0.09920393223850511
+          },
+          {
+            "chunk_id": "B2",
+            "county": "DEMO_B",
+            "source_file": "synthetic_model_sources.txt",
+            "line_start": 4,
+            "line_end": 4,
+            "locator": "Line 4",
+            "classification": "synthetic_public",
+            "role": "source",
+            "text": "DEMO_B / MOUD_BETA: The next report requests confirmation of implementation status.",
+            "sha256": "b9b32e83750c9d7d67941719cbeef5faca6f6844eea229e493a70930d5e9ae25",
+            "score": -0.13666555699989866
+          }
+        ],
+        "explanation_kind": "extractive_evidence_not_model_explanation"
+      },
+      "raw_response": "{\"case_id\": \"DEMO_UNKNOWN\", \"status\": \"insufficient_evidence\", \"answer\": \"unknown\", \"proposed_start_month\": \"\" , \"evidence\": [{\"chunk_id\": \"B1\", \"quote\": \"Funding was approved in May 2025. The team hoped to launch in June, but no actual start date was recorded.\"}] , \"limitations\": [\"No specific actual start month is documented for DEMO_B MOUD_BETA.\"]}",
+      "output": {
+        "case_id": "DEMO_UNKNOWN",
+        "status": "insufficient_evidence",
+        "answer": "unknown",
+        "proposed_start_month": "",
+        "evidence": [
+          {
+            "chunk_id": "B1",
+            "quote": "Funding was approved in May 2025. The team hoped to launch in June, but no actual start date was recorded."
+          }
+        ],
+        "limitations": [
+          "No specific actual start month is documented for DEMO_B MOUD_BETA."
+        ]
+      },
+      "payload_sha256": "2a3d7acbd890cddbf4cd75a5e183a1c22d48845cc052981c807dfa2e58a8e780",
+      "review_flags": [],
+      "usage": {
+        "prompt_tokens": 497,
+        "completion_tokens": 99,
+        "total_tokens": 596
+      },
+      "finish_reason": "stop",
+      "elapsed_seconds": 44.37258308310993
+    },
+    {
+      "case_id": "DEMO_IDENTITY",
+      "payload": {
+        "case_id": "DEMO_IDENTITY",
+        "question": "Do PROGRAM_RED and PROGRAM_BLUE identify the same DEMO_C NALOX_GAMMA strategy? Is a start month established?",
+        "evidence": [
+          {
+            "chunk_id": "C2",
+            "county": "DEMO_C",
+            "source_file": "synthetic_model_sources.txt",
+            "line_start": 6,
+            "line_end": 6,
+            "locator": "Line 6",
+            "classification": "synthetic_public",
+            "role": "source",
+            "text": "DEMO_C / NALOX_GAMMA: A reviewer must confirm whether the labels identify one strategy or two. No start date is provided.",
+            "sha256": "30c53b75e68fbee9f5da73785283e3adf07ef3e278c94ea3958ef802f152de28",
+            "score": -0.402359478108525
+          },
+          {
+            "chunk_id": "C1",
+            "county": "DEMO_C",
+            "source_file": "synthetic_model_sources.txt",
+            "line_start": 5,
+            "line_end": 5,
+            "locator": "Line 5",
+            "classification": "synthetic_public",
+            "role": "source",
+            "text": "DEMO_C / NALOX_GAMMA: The labels PROGRAM_RED and PROGRAM_BLUE appear in two reports with similar descriptions. No identifier crosswalk is supplied.",
+            "sha256": "ce13a2a7690025cec93e90b49f84f57a1d93cfee0d32dea20a097233e2f1c1c9",
+            "score": -0.402359478108525
+          }
+        ]
+      },
+      "retrieval": {
+        "status": "retrieved_evidence_unreviewed",
+        "backend": "bm25",
+        "citations": [
+          {
+            "chunk_id": "C2",
+            "county": "DEMO_C",
+            "source_file": "synthetic_model_sources.txt",
+            "line_start": 6,
+            "line_end": 6,
+            "locator": "Line 6",
+            "classification": "synthetic_public",
+            "role": "source",
+            "text": "DEMO_C / NALOX_GAMMA: A reviewer must confirm whether the labels identify one strategy or two. No start date is provided.",
+            "sha256": "30c53b75e68fbee9f5da73785283e3adf07ef3e278c94ea3958ef802f152de28",
+            "score": -0.402359478108525
+          },
+          {
+            "chunk_id": "C1",
+            "county": "DEMO_C",
+            "source_file": "synthetic_model_sources.txt",
+            "line_start": 5,
+            "line_end": 5,
+            "locator": "Line 5",
+            "classification": "synthetic_public",
+            "role": "source",
+            "text": "DEMO_C / NALOX_GAMMA: The labels PROGRAM_RED and PROGRAM_BLUE appear in two reports with similar descriptions. No identifier crosswalk is supplied.",
+            "sha256": "ce13a2a7690025cec93e90b49f84f57a1d93cfee0d32dea20a097233e2f1c1c9",
+            "score": -0.402359478108525
+          }
+        ],
+        "explanation_kind": "extractive_evidence_not_model_explanation"
+      },
+      "raw_response": "{\"case_id\": \"DEMO_IDENTITY\", \"status\": \"insufficient_evidence\", \"answer\": \"unknown\", \"proposed_start_month\": \"\" , \"evidence\": [{\"chunk_id\": \"C1\", \"quote\": \"DEMO_C / NALOX_GAMMA: The labels PROGRAM_RED and PROGRAM_BLUE appear in two reports with similar descriptions. No identifier crosswalk is supplied.\"}, {\"chunk_id\": \"C2\", \"quote\": \"DEMO_C / NALOX_GAMMA: A reviewer must confirm whether the labels identify one strategy or two. No start date is provided.\"}],\"limitations\": [\"Insufficient evidence to determine if PROGRAM_RED and PROGRAM_BLUE identify the same strategy or if a start month is established.\"]}",
+      "output": {
+        "case_id": "DEMO_IDENTITY",
+        "status": "insufficient_evidence",
+        "answer": "unknown",
+        "proposed_start_month": "",
+        "evidence": [
+          {
+            "chunk_id": "C1",
+            "quote": "DEMO_C / NALOX_GAMMA: The labels PROGRAM_RED and PROGRAM_BLUE appear in two reports with similar descriptions. No identifier crosswalk is supplied."
+          },
+          {
+            "chunk_id": "C2",
+            "quote": "DEMO_C / NALOX_GAMMA: A reviewer must confirm whether the labels identify one strategy or two. No start date is provided."
+          }
+        ],
+        "limitations": [
+          "Insufficient evidence to determine if PROGRAM_RED and PROGRAM_BLUE identify the same strategy or if a start month is established."
+        ]
+      },
+      "payload_sha256": "186bbadbef123c6911d34a1cca29da6ae5f8e8b0147d94d489942b5d74f93cef",
+      "review_flags": [],
+      "usage": {
+        "prompt_tokens": 503,
+        "completion_tokens": 157,
+        "total_tokens": 660
+      },
+      "finish_reason": "stop",
+      "elapsed_seconds": 64.52492408291437
+    }
+  ],
+  "prompt_fingerprint_scope": "final_case_schema"
+}
