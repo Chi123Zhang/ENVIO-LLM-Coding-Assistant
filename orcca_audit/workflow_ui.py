@@ -48,6 +48,10 @@ def project_header(project):
         + ("Private session" if project['classification'] == 'private_research' else 'Synthetic practice'))
     st.caption("Tracker → data review → source evidence → human review → H3 preparation findings → export" if project['data'].get('_study_kind')=='h3'
         else "Upload → audit → evidence completion → rerun → findings review → export")
+    if project['data'].get('research_plan'):
+        plan = project['data']['research_plan']
+        st.write('**Saved question (' + plan['hypothesis'] + '):** ' + plan['question'])
+        st.caption('Question and data are bound to this project version. Planning text is not supporting evidence.')
     st.page_link("pages/04_ORCCA_Workflow.py", label="Manage inputs and project versions")
 
 

@@ -14,7 +14,12 @@ def render_audit(project):
     r=project['results'];s=r['structure']
     a,b,c=st.columns(3);a.metric('Counties',s['counties']);b.metric('Tracker records',s['records']);c.metric('Event months',s['event_months'])
     st.caption('Repeated records within counties. These are not independent outcome samples.')
-    st.subheader('H3 data requirements')
+    st.subheader('What this project can check now')
+    st.write('The supplied records can support coverage, field-definition and source checks. They do not by themselves establish a validated mediator, a missing state value or a causal effect.')
+    st.subheader('Requirements for your saved question')
+    st.dataframe(pd.DataFrame(r['question_requirements']).rename(columns={'component':'Required component', 'selected_measure':'Selected measure', 'status':'Current status', 'basis':'What was checked', 'next_step':'Next step'}), hide_index=True)
+    st.subheader('H3 planning reference')
+    st.caption('The H3 pathway below is a reference template. The saved-question requirements above determine the current planning route.')
     st.dataframe(pd.DataFrame(r['h3_readiness']),hide_index=True)
     st.subheader('Representative field and version review')
     profiles=r['field_review']
@@ -60,8 +65,9 @@ def render_search(project):
 
 def render():
     from .workflow_ui import navigation, project_header, render_review, update_input, retained_inputs
-    st.title('ORCCA H3 Study Workspace')
-    st.caption('Prepare one source-linked mediation question. H4 and H5 are deferred.')
+    st.title('ORCCA Research Workspace')
+    st.caption('Workflow release: 2026-11-06')
+    st.caption('Start with a research question, check the available data, retrieve evidence and review the current findings. H3 is the default planning route.')
     navigation()
     st.sidebar.page_link('pages/01_ORCCA_Research_Audit.py',label='Current data review')
     st.sidebar.page_link('pages/02_ORCCA_Research_Findings.py',label='Current findings')
@@ -73,6 +79,8 @@ def render():
     st.info('This workspace prepares and reviews the pathway. It does not estimate mediation effects or recover suppressed death counts.')
     private=private_uploads_allowed()
     st.caption('Private session: research uploads stay in this server session; external generation is disabled.' if private else 'Public practice: synthetic data only. Research uploads and external generation are disabled.')
+    from .research_plan_ui import render as render_question
+    render_question()
     with st.expander('Suggested demo route'):
         st.write('Load the synthetic project → inspect available and missing H3 components → retrieve a source passage → review one status candidate → create a derived version → generate and review current findings → download the report.')
         st.caption('Synthetic examples demonstrate the workflow, not empirical findings. Missing coalition or outcome data remain visible. A real model call is not required for this demo.')
@@ -130,6 +138,8 @@ def render():
         st.caption(project['data'].get('completion_status','Status completion unavailable.'))
         from .pilot_ui import render as render_pilot
         render_pilot(project)
+        from .model_review_ui import render as render_model_review
+        render_model_review(project)
     with tabs[3]:
         if st.button('Generate current study findings',key='study_draft'):
             build_findings(project);st.success('Draft preparation findings generated. Review each one; no H3 effect was estimated.')

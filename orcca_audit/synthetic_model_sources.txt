@@ -1,0 +1,6 @@
+DEMO_A / NALOX_ALPHA: The program began distributing kits on 2025-04-15.
+DEMO_A / NALOX_ALPHA: A planning meeting was held in February 2025. Planning is separate from implementation.
+DEMO_B / MOUD_BETA: Funding was approved in May 2025. The team hoped to launch in June, but no actual start date was recorded.
+DEMO_B / MOUD_BETA: The next report requests confirmation of implementation status.
+DEMO_C / NALOX_GAMMA: The labels PROGRAM_RED and PROGRAM_BLUE appear in two reports with similar descriptions. No identifier crosswalk is supplied.
+DEMO_C / NALOX_GAMMA: A reviewer must confirm whether the labels identify one strategy or two. No start date is provided.

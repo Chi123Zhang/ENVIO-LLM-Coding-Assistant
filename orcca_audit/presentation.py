@@ -70,8 +70,16 @@ def readable_report(results, classification, provenance):
             refs.append('<li><a href="' + row['Full text file'] + '">' + escape(text) + '</a></li>')
         html.append('<p class="source"><strong>Supporting records</strong></p><ul class="source">' + ''.join(refs) + '</ul></article>')
         md.append("")
-    md += ["## H3–H5: readiness and next steps", ""]
-    html.append('<h2>H3–H5: readiness and next steps</h2>')
+    if results.get('research_plan'):
+        plan=results['research_plan']
+        md += ['## Saved research question', '', plan['question'], '', 'Planning route: '+plan['mode'], 'Analysis unit: '+plan['unit'], '']
+        html += ['<h2>Saved research question</h2><p>'+escape(plan['question'])+'</p><p>Planning route: '+escape(plan['mode'])+'<br>Analysis unit: '+escape(plan['unit'])+'</p>']
+        for req in results.get('question_requirements', []):
+            text=req['component']+': '+req['status']+'. '+req['next_step']
+            md += ['- '+text]
+            html.append('<p><strong>'+escape(req['component'])+':</strong> '+escape(req['status'])+'. '+escape(req['next_step'])+'</p>')
+    md += ["## Research readiness and next steps", ""]
+    html.append('<h2>Research readiness and next steps</h2>')
     for h in results.get("hypotheses", []):
         title = h["hypothesis"] + " · " + h["definition"]
         md += ["### " + title, ""]

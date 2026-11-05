@@ -38,6 +38,11 @@ def test_all_existing_files_preserved_except_documented_additions():
             for block in BRIDGE_ADDITIONS:
                 assert data.count(block.encode()) == 1, 'Unexpected bridge modification'
                 data = data.replace(block.encode(), b'', 1)
+        elif name == "README.md":
+            intro = '\nCurrent focus: a question-first ORCCA research workspace. Define a question, inspect source requirements, retrieve evidence, review candidates and export versioned findings. Public demonstrations use synthetic data only.\n\nStart with [ORCCA Workflow](https://expression-4wfrtnmolvi6ksdsst2h3c.streamlit.app/ORCCA_Workflow). Read the [workflow guide](docs/QUESTION_FIRST_WORKFLOW.md) and [local-model demonstration notes](docs/LOCAL_MODEL_DEMO.md). The original document-coding tools remain available; the historical project description follows below.\n'
+            assert data.count(intro.encode()) == 1
+            data = data.replace(intro.encode(), b"", 1)
+            data = data.replace(b"# ORCCA Research Assistant", b"# ENVIO LLM Coding Assistant", 1)
         elif name == "requirements.txt":
             assert data.endswith(REQ_ADDITION.encode())
             data = data[:-len(REQ_ADDITION.encode())]
