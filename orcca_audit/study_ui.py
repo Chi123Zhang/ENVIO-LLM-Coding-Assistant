@@ -66,7 +66,7 @@ def render_search(project):
 def render():
     from .workflow_ui import navigation, project_header, render_review, update_input, retained_inputs
     st.title('ORCCA Research Workspace')
-    st.caption('Workflow release: 2026-11-06')
+    st.caption('Workflow release: 2026-11-17')
     st.caption('Start with a research question, check the available data, retrieve evidence and review the current findings. H3 is the default planning route.')
     navigation()
     st.sidebar.page_link('pages/01_ORCCA_Research_Audit.py',label='Current data review')
@@ -81,9 +81,24 @@ def render():
     st.caption('Private session: research uploads stay in this server session; external generation is disabled.' if private else 'Public practice: synthetic data only. Research uploads and external generation are disabled.')
     from .research_plan_ui import render as render_question
     render_question()
-    with st.expander('Suggested demo route'):
-        st.write('Load the synthetic project → inspect available and missing H3 components → retrieve a source passage → review one status candidate → create a derived version → generate and review current findings → download the report.')
-        st.caption('Synthetic examples demonstrate the workflow, not empirical findings. Missing coalition or outcome data remain visible. A real model call is not required for this demo.')
+    with st.expander('H3 progress and live demo', expanded=not private):
+        st.markdown(
+            'We checked the workflow privately with a real Tracker, a data dictionary, '
+            'and a provisional attendance table. The backend aligned county-month records, '
+            'retrieved source passages with BM25, and exported a review report.'
+        )
+        st.caption(
+            'Research status: candidate corrections await review. The H3 effect, '
+            'confidence interval, and p-value are pending.'
+        )
+        st.markdown(
+            '1. In **Project inputs**, load the synthetic H3 project.\n'
+            '2. In **Data review**, check which parts of the H3 pathway are covered.\n'
+            '3. In **Evidence and completion**, run the prefilled search and open '
+            '**Review source-backed completion candidates** to review a missing status.\n'
+            '4. In **Findings and review**, generate findings and accept one for the demo. '
+            'Then download the report in **Export**.'
+        )
     if st.button('Clear current study project',key='study_clear'):
         invalidate(st.session_state,'Study project cleared.');st.session_state.pop('workflow_input_files',None)
         st.session_state['workflow_upload_epoch']=st.session_state.get('workflow_upload_epoch',0)+1;st.rerun()
@@ -124,7 +139,10 @@ def render():
         st.subheader('Practice without research data')
         variant=st.selectbox('Synthetic practice case',['Unresolved status','Changed input'],key='study_sample',on_change=invalidate,args=(st.session_state,))
         if st.button('Load synthetic H3 project',key='study_sample_build'):
-            start_project(st.session_state,*sample(variant));st.success('Synthetic practice project loaded.')
+            start_project(st.session_state,*sample(variant))
+            st.session_state['study_query'] = 'coalition process measures'
+            st.session_state['study_backend'] = 'bm25'
+            st.success('Synthetic practice project loaded. Open Data review or Evidence and completion.')
         project=current_project(st.session_state,private)
         if project:project_header(project)
         elif st.session_state.get('workflow_active'):st.warning(st.session_state.get('workflow_invalid_reason','Load the Tracker first.'))
