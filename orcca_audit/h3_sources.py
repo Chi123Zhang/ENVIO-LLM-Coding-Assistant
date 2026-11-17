@@ -280,7 +280,7 @@ def demo_sources():
     monthly, annual, attendance = [], [], []
     for i in range(1, 3):
         county, fips = f'Demo {i}', f'99{i:03d}'
-        annual.append({'County': county, 'County Code': fips, 'Year Code': 2024, 'Population': 50000, 'Deaths': 25})
+        annual.append({'County': county, 'County Code': fips, 'Year Code': 2024, 'Population': 50000, 'Deaths': 45})
         for month in range(1, 7):
             monthly.append({'County': county, 'County Code': fips, 'Month Code': f'2024/{month:02d}',
                             'Deaths': 'Suppressed' if month == 4 else 0 if month == 5 else 10})
