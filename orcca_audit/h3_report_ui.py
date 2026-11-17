@@ -6,8 +6,9 @@ import streamlit as st
 from .h3_report import METHOD, create_report, demo_inputs
 
 
-def render(private):
-    st.subheader('Run H3 analysis')
+def render_previous(private):
+    st.subheader('Earlier panel-based sensitivity analysis')
+    st.caption('This route uses supplied derived strategy fields and statistically imputes missing attendance.')
     st.caption(METHOD)
     mode = st.radio('Analysis data', ['Synthetic demo', 'Private CSV inputs'] if private else ['Synthetic demo'],
                     horizontal=True, key='h3_model_mode')
@@ -46,3 +47,10 @@ def render(private):
             st.dataframe(coverage, hide_index=True)
         st.download_button('Download H3 analysis report', archive, 'orcca_h3_analysis_report.zip',
                            'application/zip', key='h3_download')
+
+
+def render(private):
+    from .h3_sources_ui import render as render_sources
+    render_sources(private)
+    with st.expander('Earlier panel-based sensitivity analysis'):
+        render_previous(private)

@@ -46,4 +46,7 @@ def test_all_existing_files_preserved_except_documented_additions():
         elif name == "requirements.txt":
             assert data.endswith(REQ_ADDITION.encode())
             data = data[:-len(REQ_ADDITION.encode())]
+            # Added by the earlier H3 model release (e3c1356).
+            assert data.count(b"scipy>=1.11\n") == 1
+            data = data.replace(b"scipy>=1.11\n", b"", 1)
         assert hashlib.sha256(data).hexdigest() == expected, f"Unexpected change to {name}"
