@@ -66,7 +66,7 @@ def render_search(project):
 def render():
     from .workflow_ui import navigation, project_header, render_review, update_input, retained_inputs
     st.title('ORCCA Research Workspace')
-    st.caption('Workflow release: 2026-11-17')
+    st.caption('Workflow release: 2026-11-17 · H3 analysis and reports')
     st.caption('Start with a research question, check the available data, retrieve evidence and review the current findings. H3 is the default planning route.')
     navigation()
     st.sidebar.page_link('pages/01_ORCCA_Research_Audit.py',label='Current data review')
@@ -76,7 +76,7 @@ def render():
     a.markdown('**1 · Coalition process (X)**');a.caption('One defined exposure, source and applicable time')
     b.markdown('**2 · EBP implementation / reach (M)**');b.caption('A validated intermediate measure from the Tracker or reach data')
     c.markdown('**3 · Later overdose outcome (Y)**');c.caption('A later, consistently defined outcome and confounders')
-    st.info('This workspace prepares and reviews the pathway. It does not estimate mediation effects or recover suppressed death counts.')
+    st.info('Use the H3 analysis tab to estimate an exploratory path for fatal opioid overdoses and download a report.')
     private=private_uploads_allowed()
     st.caption('Private session: research uploads stay in this server session; external generation is disabled.' if private else 'Public practice: synthetic data only. Research uploads and external generation are disabled.')
     from .research_plan_ui import render as render_question
@@ -88,8 +88,7 @@ def render():
             'retrieved source passages with BM25, and exported a review report.'
         )
         st.caption(
-            'Research status: candidate corrections await review. The H3 effect, '
-            'confidence interval, and p-value are pending.'
+            'The H3 analysis tab runs the model. The evidence review workflow records source support for candidate corrections.'
         )
         st.markdown(
             '1. In **Project inputs**, load the synthetic H3 project.\n'
@@ -100,9 +99,14 @@ def render():
             'Then download the report in **Export**.'
         )
     if st.button('Clear current study project',key='study_clear'):
+        st.session_state.pop('h3_model_report', None)
         invalidate(st.session_state,'Study project cleared.');st.session_state.pop('workflow_input_files',None)
         st.session_state['workflow_upload_epoch']=st.session_state.get('workflow_upload_epoch',0)+1;st.rerun()
-    tabs=st.tabs(['1 · Project inputs','2 · Data review','3 · Evidence and completion','4 · Findings and review','5 · Export'])
+    *tabs, analysis_tab = st.tabs(['1 · Project inputs','2 · Data review','3 · Evidence and completion',
+                                   '4 · Findings and review','5 · Export', 'H3 analysis'])
+    with analysis_tab:
+        from .h3_report_ui import render as render_h3_analysis
+        render_h3_analysis(private)
     with tabs[0]:
         st.subheader('Start with the Tracker')
         st.write('No H2a panel is required. The Tracker is the primary implementation source; the other files add definitions, potential outcomes or auxiliary evidence.')
