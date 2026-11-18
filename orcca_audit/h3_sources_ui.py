@@ -6,7 +6,7 @@ import json
 import streamlit as st
 
 from .engine import AuditError
-from .h3_sources import demo_sources, rebuild
+from .h3_sources import demo_sources, rebuild, mortality
 
 LABELS = {
     'menu': 'Strategy menu', 'attendance_available': 'Attendance available',
@@ -22,6 +22,11 @@ def synthetic_sources():
 
 def clear_sources():
     st.session_state.pop('h3_source_report', None)
+    st.session_state.pop('h3_source_analysis', None)
+    st.session_state.pop('h3_attendance_evidence', None)
+    st.session_state.pop('h3_attendance_comparison', None)
+    st.session_state.pop('h3_no_change_comparison', None)
+    st.session_state.pop('h3_full_demo_evidence', None)
     st.session_state['h3_source_epoch'] = st.session_state.get('h3_source_epoch', 0) + 1
 
 
@@ -32,12 +37,24 @@ def render(private):
     options = ['Synthetic source files', 'Private research files'] if private else ['Synthetic source files']
     route = st.radio('Source reconstruction data', options, key='h3_sources_route')
     synthetic = route == options[0]
+    full_demo=False
     if synthetic:
         st.info('All files and values in this demonstration are synthetic.')
-        files, attendance = synthetic_sources()
-        start, end = '2024-03', '2024-05'
-        st.caption('Example outcome window · March–May 2024. Attendance precedes the outcome by two months; '
-                   'the Tracker snapshot precedes it by one month.')
+        scenario=st.selectbox('Synthetic source scenario',
+            ['Small source-check example','Full H3 comparison demo'],key='h3_sources_demo_scenario')
+        full_demo=scenario=='Full H3 comparison demo'
+        if full_demo:
+            from .h3_public_comparison import full_demo_sources, demo_input_archive
+            files,attendance=full_demo_sources();start,end='2024-01','2024-12'
+            st.caption('Six fictional counties, original-source reconstruction, a fixed model comparison, '
+                       'BM25 evidence retrieval and report ZIP downloads. Synthetic estimates are software demonstrations.')
+            st.download_button('Download full synthetic H3 inputs',demo_input_archive(),
+                'synthetic_h3_comparison_inputs.zip','application/zip',key='h3_full_demo_inputs')
+        else:
+            files, attendance = synthetic_sources()
+            start, end = '2024-03', '2024-05'
+            st.caption('Example outcome window · March–May 2024. For the modelling and retrieval demonstration, '
+                       'select Full H3 comparison demo above.')
     else:
         st.caption('Upload authorized files to this private server session.')
         epoch = str(st.session_state.get('h3_source_epoch', 0))
@@ -57,18 +74,32 @@ def render(private):
         a, b = st.columns(2)
         start = a.text_input('Outcome start month (YYYY-MM)', '2021-02', key='h3_sources_start')
         end = b.text_input('Outcome end month (YYYY-MM)', '2022-06', key='h3_sources_end')
+    if not synthetic and 'monthly' in files and st.checkbox(
+            'Use the entire supplied CDC period', value=True, key='h3_sources_full_period'):
+        try:
+            table = mortality(files['monthly'], 'Month Code', r'\d{4}/(0[1-9]|1[0-2])', ['Deaths'])
+            months = table['Month Code'].str.replace('/', '-', regex=False)
+            if months.empty:
+                raise AuditError('No valid CDC months found.')
+            start, end = months.min(), months.max()
+            st.caption(f'Full outcome window: {start} to {end}.')
+        except AuditError as error:
+            st.error(str(error))
+            files.pop('monthly')
     ready = len(files) == 4 and bool(attendance)
     fingerprint = hashlib.sha256(json.dumps([
-        route, start, end,
+        route, full_demo, start, end,
         [(role, name, hashlib.sha256(raw).hexdigest()) for role, (name, raw) in sorted(files.items())],
         [(name, hashlib.sha256(raw).hexdigest()) for name, raw in attendance],
     ]).encode()).hexdigest()
     stored = st.session_state.get('h3_source_report')
     if stored and stored[0] != fingerprint:
         st.session_state.pop('h3_source_report', None)
+        st.session_state.pop('h3_source_analysis', None)
         stored = None
     if st.button('Rebuild H3 from source files', disabled=not ready, key='h3_sources_run'):
         st.session_state.pop('h3_source_report', None)
+        st.session_state.pop('h3_source_analysis', None)
         stored = None
         try:
             with st.spinner('Checking definitions and aligning source records…'):
@@ -85,6 +116,57 @@ def render(private):
                    'and missing attendance remain unknown. Only explicit present marks establish recorded attendance.')
         st.write('The rebuilt inputs and source references are ready for review. Model fitting and statistical imputation '
                  'have not run in this source-reconstruction report.')
+        render_analysis(archive, fingerprint)
+        if private and not synthetic:
+            from .h3_no_change_ui import render_no_change
+            render_no_change(archive,files['tracker'],files['dictionary'])
+            from .h3_attendance_evidence_ui import render_evidence
+            render_evidence(archive)
+        elif full_demo:
+            from .h3_no_change_ui import render_no_change
+            render_no_change(archive,files['tracker'],files['dictionary'])
+            from .h3_public_comparison import render_demo_evidence
+            render_demo_evidence(archive)
         st.download_button('Download source reconstruction report', archive, 'orcca_h3_source_report.zip',
                            'application/zip', key='h3_sources_download')
     st.button('Clear source reconstruction', on_click=clear_sources, key='h3_sources_clear')
+
+
+def render_analysis(archive, fingerprint):
+    from .h3_source_analysis import analyse_reconstruction
+    st.subheader('Test the observed H3 paths')
+    st.caption('Attendance at t−2 → reported implementation at t−1 → CDC counts at t. '
+               'OLS and interval Poisson models use county fixed effects and a linear time trend. '
+               'Unknown inputs remain unknown. Approximate intervals use delete-county jackknife inference.')
+    stored = st.session_state.get('h3_source_analysis')
+    if stored and stored[0] != fingerprint:
+        st.session_state.pop('h3_source_analysis', None)
+        stored = None
+    if st.button('Run H3 tests on current source data', key='h3_source_analysis_run'):
+        st.session_state.pop('h3_source_analysis', None)
+        stored = None
+        try:
+            with st.spinner('Fitting observed paths and checking each county…'):
+                result = analyse_reconstruction(archive)
+            stored = (fingerprint, result)
+            st.session_state['h3_source_analysis'] = stored
+        except (ValueError, ArithmeticError) as error:
+            st.error('Analysis failed. ' + str(error))
+    if stored:
+        metadata, paths, diagnostics, report = stored[1]
+        st.write(f"**{metadata['models_fitted']} of {metadata['specifications_attempted']} specifications fitted; "
+                 f"{metadata['inference_available']} completed uncertainty checks.**")
+        if not paths.empty:
+            st.dataframe(paths[['menu','mediator','county_months','counties','estimate','low','high','p_approx']]
+                         .rename(columns={'menu':'Menu','mediator':'Intermediate measure','county_months':'County-months',
+                                          'counties':'Counties','estimate':'exp(a × b)','low':'95% lower',
+                                          'high':'95% upper','p_approx':'Approximate p-value'}),hide_index=True)
+        else:
+            st.info('The current records do not support interval estimates. See the diagnostics for each specification.')
+        with st.expander('All specifications and stability checks'):
+            st.dataframe(diagnostics,hide_index=True)
+        st.caption('These exploratory path tests depend on the selected measures and available records. '
+                   'Small county counts and suppressed outcomes limit inference. CDC endpoint filters, service reach, '
+                   'nonfatal outcomes and causal assumptions still require review.')
+        st.download_button('Download H3 statistical report',report,'orcca_h3_statistical_report.zip',
+                           'application/zip',key='h3_source_analysis_download')
