@@ -263,6 +263,8 @@ def _change_workspace():
 
 
 def render():
+    from .research_access import render_access
+    render_access()
     options=['H3 study preparation','Legacy data audit']
     saved=st.session_state.get('workflow_workspace',options[0])
     choice=st.radio('Workspace',options,index=options.index(saved),key='workflow_workspace_widget',on_change=_change_workspace)
