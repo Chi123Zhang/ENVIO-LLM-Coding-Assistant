@@ -4,7 +4,10 @@ import os
 
 
 def private_uploads_allowed():
-    return os.environ.get("ORCCA_DEPLOYMENT_MODE", "public_demo") == "local_private" and os.environ.get("ORCCA_ALLOW_PRIVATE_UPLOADS") == "1"
+    if os.environ.get("ORCCA_DEPLOYMENT_MODE", "public_demo") == "local_private":
+        return os.environ.get("ORCCA_ALLOW_PRIVATE_UPLOADS") == "1"
+    from .research_access import cloud_research_allowed
+    return cloud_research_allowed()
 
 
 def external_generation_allowed(documents):

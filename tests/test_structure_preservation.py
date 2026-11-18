@@ -44,6 +44,9 @@ def test_all_existing_files_preserved_except_documented_additions():
             data = data.replace(intro.encode(), b"", 1)
             data = data.replace(b"# ORCCA Research Assistant", b"# ENVIO LLM Coding Assistant", 1)
         elif name == "requirements.txt":
+            auth_addition = '\n# Optional, operator-configured OIDC login for cloud research access.\nAuthlib>=1.3.2\n'
+            assert data.endswith(auth_addition.encode())
+            data = data[:-len(auth_addition.encode())]
             assert data.endswith(REQ_ADDITION.encode())
             data = data[:-len(REQ_ADDITION.encode())]
             # Added by the earlier H3 model release (e3c1356).
