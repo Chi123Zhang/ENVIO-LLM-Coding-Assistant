@@ -27,6 +27,7 @@ def clear_sources():
     st.session_state.pop('h3_attendance_comparison', None)
     st.session_state.pop('h3_no_change_comparison', None)
     st.session_state.pop('h3_full_demo_evidence', None)
+    st.session_state.pop('h3_ai_experiment', None)
     st.session_state['h3_source_epoch'] = st.session_state.get('h3_source_epoch', 0) + 1
 
 
@@ -152,6 +153,8 @@ def render(private):
             render_no_change(archive,files['tracker'],files['dictionary'])
             from .h3_attendance_evidence_ui import render_evidence
             render_evidence(archive)
+            from .h3_ai_completion_ui import render_ai_experiment
+            render_ai_experiment(archive)
         elif full_demo:
             from .h3_no_change_ui import render_no_change
             render_no_change(archive,files['tracker'],files['dictionary'])
