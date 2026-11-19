@@ -38,7 +38,7 @@ def render_evidence(archive):
     st.caption('Upload up to 300 meeting PDFs, 200 MB total. Each PDF must be under 20 MB and 150 pages. '
                'Supplementary interviews and DOCX/TXT documents have their own upload and search below.')
     st.caption('County and date in each filename restrict retrieval to the '
-               'missing exposure month. BM25 retrieves original excerpts and preserves page references. '
+               'missing exposure month. The selected method retrieves original excerpts and preserves page references. '
                'A retrieved passage is not a verified headcount. No external model is called.')
     st.caption('Source memory retains original excerpts, locators and retrieval logs. It does not train a '
                'Transformer or generate missing values. Accepted corrections require an explicit review.')
@@ -48,7 +48,8 @@ def render_evidence(archive):
     files = [(f.name, f.getvalue()) for f in uploads]
     from .h3_support_ui import render_support
     render_support(archive)
-    fingerprint = sha256(archive + json.dumps(sorted(
+    backend = st.selectbox('Meeting retrieval method',['bm25','hybrid_rrf'])
+    fingerprint = sha256(archive + backend.encode() + json.dumps(sorted(
         (name, sha256(raw).hexdigest()) for name, raw in files)).encode()).hexdigest()
     stored = st.session_state.get('h3_attendance_evidence')
     if stored and stored[0] != fingerprint:
@@ -64,7 +65,7 @@ def render_evidence(archive):
             with st.spinner('Reading PDFs and retrieving county-month evidence…'):
                 result = build_evidence_review(archive, files,
                     parse_cache=st.session_state.setdefault('h3_meeting_parse_memory',{}),
-                    query_cache=st.session_state.setdefault('h3_query_memory',{}))
+                    query_cache=st.session_state.setdefault('h3_query_memory',{}),backend=backend)
             stored = fingerprint, result
             st.session_state['h3_attendance_evidence'] = stored
         except (AuditError, ValueError, KeyError, TypeError) as error:
@@ -93,6 +94,33 @@ def render_evidence(archive):
             st.markdown(f"**{doc['source_file']} — page {doc['page']}**")
             st.text(doc['text'])
             st.caption('Source ID: ' + doc['chunk_id'])
+    st.subheader('H3 sensitivity from retrieved meeting evidence')
+    estimator = st.selectbox('Evidence-gated attendance estimator',
+        ['select_by_masked_error','interpolation','local_donors'])
+    st.caption('Use dated meeting evidence to identify eligible missing months, then estimate attendance '
+               'from recorded meetings in the same county. Estimates remain statistical values. '
+               'The separate local-model experiment below can attempt explicit count extraction.')
+    no_change_context = st.session_state.get('h3_no_change_comparison')
+    sensitivity_key = fingerprint + estimator + (no_change_context[0] if no_change_context else '')
+    if st.button('Run evidence-gated H3 sensitivity'):
+        from .h3_hybrid_attendance import run_hybrid
+        baseline = archive
+        no_change = st.session_state.get('h3_no_change_comparison')
+        if no_change:
+            with ZipFile(BytesIO(no_change[1][4])) as z:
+                baseline = z.read('documented_no_change_analysis.zip')
+        candidates = [dict(county=row.county,attendance_month=row.attendance_month,
+            status='retrieval_only_no_extracted_count',ai_value=None,supplied_meetings=row.source_pdfs,
+            model_calls=0,evidence_assessments=int(row.retrieved_chunks>0)) for row in queue.itertuples()]
+        with st.spinner('Fitting six evidence-gated sensitivity paths…'):
+            value = run_hybrid(baseline,candidates,method=estimator)
+        st.session_state['h3_evidence_sensitivity'] = sensitivity_key,value
+    sensitivity = st.session_state.get('h3_evidence_sensitivity')
+    if sensitivity and sensitivity[0]==sensitivity_key:
+        paths,audit,package = sensitivity[1]
+        st.dataframe(paths,hide_index=True)
+        st.dataframe(audit,hide_index=True)
+        st.download_button('Download evidence-gated H3 report',package,'h3_evidence_sensitivity.zip','application/zip')
     st.download_button('Download attendance review package', report, 'orcca_attendance_evidence_review.zip',
                         'application/zip', key='h3_attendance_review_download')
     st.caption('The independent reviewer answer columns are blank. AI outputs must never be entered as human '

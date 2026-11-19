@@ -23,11 +23,25 @@ def fingerprint(value):
 
 def cached_search(query, docs, cache, *, top_k=5, backend='bm25'):
     validate_documents(docs)
-    key = fingerprint([VERSION, query, backend, top_k,
+    from .hybrid import MODEL_REVISIONS
+    key = fingerprint([VERSION, MODEL_REVISIONS, query, backend, top_k,
                        [(d['chunk_id'], d['sha256']) for d in docs]])
     if key in cache:
         return dict(cache[key], memory_reused=True)
-    result = retrieve(query, docs, backend=backend, top_k=top_k)
+    if backend == 'hybrid_rrf' and docs:
+        from .hybrid import MODEL_REVISIONS, rrf_retrieve
+        try:
+            ranked,reused = rrf_retrieve(query,docs,top_k,cache.setdefault('scoped_vector_indexes',{}))
+            result = dict(status='retrieved_evidence_unreviewed',backend=backend,
+                citations=[dict(doc,score=score) for doc,score in ranked],
+                explanation_kind='extractive_evidence_not_model_explanation',
+                model_revisions=dict(MODEL_REVISIONS),inference_location='application_cpu',
+                index_reused=reused)
+        except Exception as error:
+            result = dict(status='hybrid_unavailable_no_fallback',backend=backend,citations=[],
+                          reason=type(error).__name__)
+    else:
+        result = retrieve(query, docs, backend=backend, top_k=top_k)
     cache[key] = result
     return dict(result, memory_reused=False)
 

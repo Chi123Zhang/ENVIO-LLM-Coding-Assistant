@@ -78,6 +78,7 @@ def prepare_experiment(original_archive, memory, baseline_archive=None, query_ca
         raise AuditError('Baseline must preserve the current original attendance and outcome inputs.')
     if baseline.duplicated(['county', 'outcome_month', 'menu']).any():
         raise AuditError('Duplicate baseline keys.')
+    backend = memory.get('retrieval_backend','bm25')
     query_cache = {} if query_cache is None else query_cache
     cases, tasks, logs = [], [], []
     for (county, month), group in baseline[baseline.attendance.isna()].groupby(
@@ -92,7 +93,7 @@ def prepare_experiment(original_archive, memory, baseline_archive=None, query_ca
             scores = defaultdict(float)
             by_id = {d['chunk_id']: d for d in pool}
             for query in QUERIES:
-                found = cached_search(query, pool, query_cache, top_k=3)
+                found = cached_search(query, pool, query_cache, top_k=3,backend=backend)
                 logs.append(dict(case_id=case_id, meeting_date=date, query=query, **found))
                 for rank, doc in enumerate(found['citations'], 1):
                     scores[doc['chunk_id']] += 1 / (60 + rank)
@@ -103,6 +104,7 @@ def prepare_experiment(original_archive, memory, baseline_archive=None, query_ca
     from .h3_ai_runtime import MODEL_ID, MODEL_REVISION, SETTINGS
     protocol = dict(method=METHOD, classification=meta['classification'],
                     model_id=MODEL_ID, model_revision=MODEL_REVISION, model_settings=dict(SETTINGS),
+                    retrieval_backend=backend,
                     engine_sha256=sha256(Path(__file__).read_bytes()).hexdigest(),
                     runtime_code_sha256=sha256(Path(__file__).with_name('h3_ai_runtime.py').read_bytes()).hexdigest(),
                     original_run_id=source_run_id(original_archive),
