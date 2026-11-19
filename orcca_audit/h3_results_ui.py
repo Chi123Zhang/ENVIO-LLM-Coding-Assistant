@@ -13,9 +13,15 @@ def statistical_summary(paths):
         for value, ok in zip(p, valid)]
     data['mediator'] = data['mediator'].replace({
         'active_snapshot': 'Active strategies', 'venue_types': 'Venue types'})
-    return data.rename(columns={'menu': 'Strategy', 'mediator': 'Intermediate measure',
+    low = pd.to_numeric(data.pop('low'), errors='coerce')
+    high = pd.to_numeric(data.pop('high'), errors='coerce')
+    data['95% interval'] = [f'{a:.4f} to {b:.4f}' if pd.notna(a) and pd.notna(b)
+                           else 'Unavailable' for a, b in zip(low, high)]
+    data = data.rename(columns={'menu': 'Strategy', 'mediator': 'Intermediate measure',
         'county_months': 'County-months', 'estimate': 'Indirect-path ratio',
-        'low': '95% interval: lower', 'high': '95% interval: upper'})
+    })
+    return data[['Strategy', 'Intermediate measure', 'Approx. p-value',
+                 'Significant (p < 0.05)', 'County-months', 'Indirect-path ratio', '95% interval']]
 
 
 def render_path_results(paths, *, key):
