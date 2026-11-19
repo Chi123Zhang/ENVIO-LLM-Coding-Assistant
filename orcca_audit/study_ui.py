@@ -66,7 +66,7 @@ def render_search(project):
 def render():
     from .workflow_ui import navigation, project_header, render_review, update_input, retained_inputs
     st.title('ORCCA Research Workspace')
-    st.caption('Workflow release: 2026-11-20 · H3 p-values and statistical significance')
+    st.caption('Workflow release: 2026-11-20 · Blocked attendance validation and H3 results')
     st.caption('Start with a research question, check the available data, retrieve evidence and review the current findings. H3 is the default planning route.')
     navigation()
     st.sidebar.page_link('pages/01_ORCCA_Research_Audit.py',label='Current data review')

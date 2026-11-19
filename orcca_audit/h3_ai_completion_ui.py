@@ -113,10 +113,10 @@ def render_ai_experiment(archive):
         st.caption('Run six exploratory paths. Where dated meeting evidence was searched, the model '
                    'uses an eligible unreviewed RAG count first. Otherwise it uses observed '
                    'meetings in the same county within six months and generates 40 estimates. '
-                   'Automatic selection compares interpolation and local donors on masked attendance. AI counts are treated as fixed. '
+                   'Blocked selection compares three estimators with a separate held-out test split. AI counts are treated as fixed. '
                    'Other gaps stay unknown.')
         estimator = st.selectbox('Attendance estimator',
-            ['select_by_masked_error','interpolation','local_donors'],
+            ['select_by_blocked_validation','select_by_masked_error','interpolation','local_donors','time_weighted_donors'],
             help='Choose using attendance prediction error, or run a named sensitivity method.')
         if st.button('Run H3 with RAG and interpolation', disabled=not permitted):
             from .h3_hybrid_attendance import run_hybrid
@@ -126,11 +126,8 @@ def render_ai_experiment(archive):
         hybrid = result.get('hybrid_attendance')
         if permitted and hybrid and hybrid[0]==estimator:
             paths, audit, package = hybrid[1]
-            with ZipFile(BytesIO(package)) as validation_zip:
-                protocol = json.loads(validation_zip.read('protocol.json'))
-            st.caption(f"Attendance estimator: {protocol['method']}; "
-                       f"{protocol['validation_rows']} jointly masked records. "
-                       f"Mean absolute errors: {protocol['masked_mae']}.")
+            from .h3_attendance_validation import render_validation
+            render_validation(package, key='h3_ai_hybrid')
             from .h3_results_ui import render_path_results
             render_path_results(paths, key='h3_ai_hybrid')
             st.dataframe(audit, hide_index=True)

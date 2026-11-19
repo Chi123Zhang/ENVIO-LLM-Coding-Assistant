@@ -10,17 +10,7 @@ import pandas as pd
 from .h3_ai_completion import source_only_archive
 from .h3_model import fit_with_variance, pool
 from .h3_source_analysis import CONFIG, analyse_reconstruction
-
-
-def interpolate(observed, month):
-    months = pd.PeriodIndex(observed.index, freq='M')
-    delta = months.asi8 - pd.Period(month, freq='M').ordinal
-    left = np.flatnonzero((delta < 0) & (delta >= -6))
-    right = np.flatnonzero((delta > 0) & (delta <= 6))
-    if not len(left) or not len(right):
-        return None
-    a, b = left[-1], right[0]
-    return float(np.interp(0, delta[[a, b]], observed.iloc[[a, b]]))
+from .h3_attendance_validation import blocked_validation, interpolate, neighbours
 
 
 def run_hybrid(archive, candidates, *, method="interpolation"):
@@ -29,6 +19,8 @@ def run_hybrid(archive, candidates, *, method="interpolation"):
     before = analyse_reconstruction(source_only_archive(archive))[1]
     keys = ['county', 'attendance_month']
     observed = data[keys + ['attendance']].drop_duplicates().dropna()
+    blocked_predictions, blocked_scores, blocked_protocol = blocked_validation(observed)
+    requested_method = method
     rng = np.random.default_rng(20261120)
     sampled, ledger = {}, []
     validation = []
@@ -46,7 +38,9 @@ def run_hybrid(archive, candidates, *, method="interpolation"):
               for name in ['interpolation','local_donors']} if len(validation) else {}
     if method == 'select_by_masked_error':
         method = min(scores,key=scores.get) if scores else 'interpolation'
-    if method not in {'interpolation','local_donors'}:
+    if method == 'select_by_blocked_validation':
+        method = blocked_protocol['selected_method']
+    if method not in {'interpolation','local_donors','time_weighted_donors'}:
         raise ValueError('Unsupported attendance estimator.')
     eligible = data[data.attendance.isna() & data.outcome_available &
                     data[CONFIG['mediators']].notna().any(axis=1)]
@@ -56,18 +50,20 @@ def run_hybrid(archive, candidates, *, method="interpolation"):
         if key not in relevant or not row['supplied_meetings']:
             continue
         obs = observed[observed.county.eq(county)].set_index('attendance_month').attendance.sort_index()
+        ref, distances = neighbours(obs, month)
         value = row['ai_value']
         basis = 'Unknown'
         if row['status'] == 'AI_unreviewed_candidate' and pd.notna(value):
             sampled[key] = np.full(40, value)
             basis = 'Source-linked AI estimate (unreviewed)'
+            ref = ref.iloc[:0]
         elif row.get('evidence_assessments',row['model_calls']) > 0:
-            distances = np.abs(pd.PeriodIndex(obs.index,freq='M').asi8-pd.Period(month,freq='M').ordinal)
-            ref = obs[(distances>0)&(distances<=6)]
-            if method == 'local_donors' and len(ref)>=3:
-                value = float(ref.mean())
-                sampled[key] = np.array([rng.choice(ref.values,p=rng.dirichlet(np.ones(len(ref)))) for _ in range(40)])
-                basis = 'Statistical local donors'
+            if method in {'local_donors','time_weighted_donors'} and len(ref)>=3:
+                weights = np.ones(len(ref)) if method == 'local_donors' else 1 / distances
+                weights = weights / weights.sum()
+                value = float(np.average(ref, weights=weights))
+                sampled[key] = np.array([rng.choice(ref.values,p=rng.dirichlet(weights * len(ref))) for _ in range(40)])
+                basis = 'Statistical local donors' if method == 'local_donors' else 'Statistical time-weighted donors'
             else:
                 value = interpolate(obs, month) if method=='interpolation' else None
             if method == 'interpolation' and value is not None:
@@ -79,8 +75,15 @@ def run_hybrid(archive, candidates, *, method="interpolation"):
                 if len(errors) >= 3:
                     sampled[key] = np.maximum(0, value + rng.choice(errors, size=40))
                     basis = 'Statistical interpolation'
+        draws = sampled.get(key)
         ledger.append(dict(county=county, attendance_month=month, basis=basis,
-                           estimate=value if key in sampled else None))
+            estimate=value if draws is not None else None,
+            estimator='fixed_unreviewed_AI' if basis.startswith('Source-linked AI') else method,
+            supplied_meetings=row['supplied_meetings'], donor_count=len(ref),
+            donor_months=' | '.join(ref.index),
+            uses_later_donors=bool(any(m > month for m in ref.index)),
+            draw_lower=float(np.quantile(draws,.025)) if draws is not None else None,
+            draw_upper=float(np.quantile(draws,.975)) if draws is not None else None))
     results = []
     for menu in CONFIG['menus']:
         for mediator in CONFIG['mediators']:
@@ -107,14 +110,18 @@ def run_hybrid(archive, candidates, *, method="interpolation"):
             results.append(dict(result, menu=menu, mediator=mediator, county_months=n, counties=g, diagnostic=diagnostic))
     paths = pd.DataFrame(results).merge(before[['menu','mediator','county_months','p_approx']].rename(
         columns={'county_months':'baseline_county_months','p_approx':'baseline_p'}), how='left', on=['menu','mediator'])
-    audit = pd.DataFrame(ledger, columns=keys+['basis','estimate'])
+    audit = pd.DataFrame(ledger, columns=keys+['basis','estimate','estimator','supplied_meetings',
+        'donor_count','donor_months','uses_later_donors','draw_lower','draw_upper'])
     buf = BytesIO()
     with ZipFile(buf,'w',ZIP_DEFLATED) as z:
         z.writestr('paths.csv', paths.to_csv(index=False))
         from .h3_results_ui import statistical_summary
         z.writestr('results_summary.csv', statistical_summary(paths).to_csv(index=False))
         z.writestr('masked_validation.csv',validation.to_csv(index=False))
-        z.writestr('protocol.json',json.dumps(dict(method=method,masked_mae=scores,
+        z.writestr('blocked_validation_predictions.csv',blocked_predictions.to_csv(index=False))
+        z.writestr('blocked_validation_scores.csv',blocked_scores.to_csv(index=False))
+        z.writestr('protocol.json',json.dumps(dict(method=method,requested_method=requested_method,
+            blocked_validation=blocked_protocol,masked_mae=scores,
             validation_rows=len(validation),seed=20261120,draws=40,
             source_archive_sha256=sha256(archive).hexdigest(),
             method_selection='Attendance prediction error; mortality and p-values not used',
@@ -125,7 +132,9 @@ def run_hybrid(archive, candidates, *, method="interpolation"):
         z.writestr('attendance_basis.csv', audit.to_csv(index=False))
         z.writestr('README.txt','Open results_summary.csv for approximate p-values, 95% intervals and significance at p < 0.05. '
                    'paths.csv retains all raw model columns and fit diagnostics. '
-                   'Exploratory sensitivity analysis. Statistical attendance uses 40 masked-error draws. '
+                   'Exploratory sensitivity analysis. Statistical attendance uses 40 draws. '
+                   'Read blocked_validation_scores.csv for separate method-selection and held-out test errors. '
+                   'Attendance draw ranges are descriptive, not calibrated confidence intervals. '
                    'AI counts are unreviewed and treated as fixed; extraction uncertainty is not calibrated. '
                    'Interpolation uses meetings before and after the gap and is retrospective. '
                    'Six menu-mediator paths are reported together. Complete causal H3 is unresolved.')
