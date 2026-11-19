@@ -35,8 +35,8 @@ def render_evidence(archive):
     st.markdown('**3 · RAG evidence: targeted attendance verification**')
     st.write('The primary tables, dictionary and attendance CSVs have already been read above. '
              'This upload adds supporting documents only; it does not replace the structured inputs.')
-    st.caption('This step accepts meeting PDFs. Interviews and other documents can be searched in the '
-               'project evidence workflow, but are not automatically converted to attendance values here.')
+    st.caption('Upload up to 300 meeting PDFs, 200 MB total. Each PDF must be under 20 MB and 150 pages. '
+               'Supplementary interviews and DOCX/TXT documents have their own upload and search below.')
     st.caption('County and date in each filename restrict retrieval to the '
                'missing exposure month. BM25 retrieves original excerpts and preserves page references. '
                'A retrieved passage is not a verified headcount. No external model is called.')
@@ -46,6 +46,8 @@ def render_evidence(archive):
     uploads = st.file_uploader('Meeting PDFs for attendance verification', type=['pdf'],
                                accept_multiple_files=True, key='h3_attendance_pdfs_' + epoch)
     files = [(f.name, f.getvalue()) for f in uploads]
+    from .h3_support_ui import render_support
+    render_support(archive)
     fingerprint = sha256(archive + json.dumps(sorted(
         (name, sha256(raw).hexdigest()) for name, raw in files)).encode()).hexdigest()
     stored = st.session_state.get('h3_attendance_evidence')
@@ -60,7 +62,9 @@ def render_evidence(archive):
         stored = None
         try:
             with st.spinner('Reading PDFs and retrieving county-month evidence…'):
-                result = build_evidence_review(archive, files)
+                result = build_evidence_review(archive, files,
+                    parse_cache=st.session_state.setdefault('h3_meeting_parse_memory',{}),
+                    query_cache=st.session_state.setdefault('h3_query_memory',{}))
             stored = fingerprint, result
             st.session_state['h3_attendance_evidence'] = stored
         except (AuditError, ValueError, KeyError, TypeError) as error:
@@ -71,6 +75,13 @@ def render_evidence(archive):
     st.write(f"**{manifest['missing_attendance_cases']} missing county-months; "
              f"{manifest['cases_with_same_county_month_pdf']} have matching PDF evidence. "
              'No values have been filled.**')
+    st.caption(f'{manifest.get("source_pdfs",0)} meeting files indexed; '
+               f'{manifest.get("excluded_files",0)} excluded; '
+               f'{manifest.get("parsed_from_memory",0)} parsed files reused; '
+               f'{manifest.get("retrieval_memory_hits",0)} retrieval results reused.')
+    if manifest.get('file_inventory'):
+        with st.expander('Meeting corpus inventory and exclusions'):
+            st.dataframe(pd.DataFrame(manifest['file_inventory']),hide_index=True)
     st.dataframe(queue[['case_id', 'potential_menu_paths', 'source_pdfs', 'retrieved_chunks',
                          'retrieval_status', 'human_confirmed']], hide_index=True)
     matches = [r for r in logs if r['citations']]

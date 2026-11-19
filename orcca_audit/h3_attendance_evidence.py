@@ -16,6 +16,7 @@ from pypdf import PdfReader
 from .engine import AuditError
 from .exports import safe_csv
 from .retrieval import retrieve
+from .h3_evidence_memory import MAX_BYTES, MAX_FILES, VERSION, cached_search, fingerprint
 
 QUERY = 'attendance roll call present participants meeting headcount people joined sign in'
 REVIEW_COLUMNS = ['case_id', 'run_id', 'county', 'attendance_month', 'question',
@@ -72,21 +73,37 @@ def parse_pdf(name, raw, counties):
     return docs
 
 
-def build_evidence_review(source_archive, pdf_files, *, synthetic=False):
+def build_evidence_review(source_archive, pdf_files, *, synthetic=False, parse_cache=None, query_cache=None):
     data, metadata = load_source(source_archive)
     expected = 'synthetic demonstration' if synthetic else 'private research'
     if metadata['classification'] != expected:
         raise AuditError('Evidence review classification does not match the current reconstruction.')
-    if not 1 <= len(pdf_files) <= 30:
-        raise AuditError('Provide between one and thirty original meeting PDFs per review run.')
+    if not 1 <= len(pdf_files) <= MAX_FILES or sum(len(raw) for _, raw in pdf_files) > MAX_BYTES:
+        raise AuditError('Provide one to 300 meeting PDFs, at most 200 MB total.')
+    parse_cache = {} if parse_cache is None else parse_cache
+    query_cache = {} if query_cache is None else query_cache
+    inventory = []
     run_id = source_run_id(source_archive)
     documents, seen = [], set()
     for name, raw in pdf_files:
         digest = sha256(raw).hexdigest()
         if digest in seen:
+            inventory.append(dict(source_file=name, sha256=digest, status='duplicate_bytes'))
             continue
         seen.add(digest)
-        documents.extend(parse_pdf(name, raw, sorted(data.county.unique())))
+        key = fingerprint([VERSION, name, digest, sorted(data.county.unique())])
+        try:
+            reused = key in parse_cache
+            if not reused:
+                parsed = parse_pdf(name, raw, sorted(data.county.unique()))
+                if not parsed:
+                    raise AuditError('No extractable text found.')
+                parse_cache[key] = [dict(d, document_type='meeting') for d in parsed]
+            documents.extend(parse_cache[key])
+            inventory.append(dict(source_file=name, sha256=digest, status='indexed',
+                                  chunks=len(parse_cache[key]), parse_reused=reused))
+        except Exception as error:
+            inventory.append(dict(source_file=name, sha256=digest, status='excluded', reason=str(error)[:240]))
     if synthetic:
         for doc in documents:
             doc['classification']='synthetic'
@@ -97,7 +114,7 @@ def build_evidence_review(source_archive, pdf_files, *, synthetic=False):
     for (county, month), group in gaps:
         case_id = f'{county.upper()}-{month}'
         scoped = [d for d in documents if d['county'] == county and d['month'] == month]
-        result = retrieve(QUERY, scoped, backend='bm25', top_k=5)
+        result = cached_search(QUERY, scoped, query_cache, top_k=5)
         citations = result['citations']
         potential = group.loc[group.active_snapshot.notna() & group.outcome_available, 'menu'].tolist()
         case = dict(case_id=case_id, run_id=run_id, county=county, attendance_month=month,
@@ -117,9 +134,14 @@ def build_evidence_review(source_archive, pdf_files, *, synthetic=False):
     queue = pd.DataFrame(cases).sort_values(['potential_menu_paths', 'source_pdfs', 'case_id'], ascending=[False, False, True])
     manifest = dict(run_id=run_id, classification=expected,
         candidate_county_months=metadata['county_months'], missing_attendance_cases=len(cases),
-        source_pdfs=len(seen), source_chunks=len(documents),
+        source_pdfs=sum(r['status']=='indexed' for r in inventory), source_chunks=len(documents),
+        uploaded_files=len(pdf_files), excluded_files=sum(r['status']=='excluded' for r in inventory),
+        duplicate_files=sum(r['status']=='duplicate_bytes' for r in inventory),
+        parsed_from_memory=sum(r.get('parse_reused',False) for r in inventory),
+        retrieval_memory_hits=sum(bool(r['citations']) and r.get('memory_reused',False) for r in logs),
+        file_inventory=inventory,
         cases_with_same_county_month_pdf=int(queue.source_pdfs.gt(0).sum()),
-        actual_bm25_queries=int(queue.source_pdfs.gt(0).sum()),
+        actual_bm25_queries=sum(bool(r['citations']) and not r.get('memory_reused',False) for r in logs),
         priority_cases_with_evidence=int((queue.source_pdfs.gt(0) & queue.potential_menu_paths.gt(0)).sum()),
         human_confirmed_values=0, applied_values=0, llm_calls=0, external_model_calls=0,
         memory_kind='versioned original-source retrieval memory; no generated answers or reviewer labels',

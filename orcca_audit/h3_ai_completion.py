@@ -14,6 +14,7 @@ from .engine import AuditError
 from .exports import safe_csv
 from .h3_attendance_evidence import load_source, source_run_id
 from .retrieval import retrieve, validate_documents
+from .h3_evidence_memory import cached_search
 
 METHOD = 'AI-unreviewed experimental attendance completion v1'
 QUERIES = [
@@ -54,7 +55,7 @@ def source_only_archive(raw):
     return output.getvalue()
 
 
-def prepare_experiment(original_archive, memory, baseline_archive=None):
+def prepare_experiment(original_archive, memory, baseline_archive=None, query_cache=None):
     """Freeze source-bound contexts before generation; no labels are retrieved."""
     original, meta = load_source(original_archive)
     baseline_archive = baseline_archive or original_archive
@@ -77,11 +78,12 @@ def prepare_experiment(original_archive, memory, baseline_archive=None):
         raise AuditError('Baseline must preserve the current original attendance and outcome inputs.')
     if baseline.duplicated(['county', 'outcome_month', 'menu']).any():
         raise AuditError('Duplicate baseline keys.')
+    query_cache = {} if query_cache is None else query_cache
     cases, tasks, logs = [], [], []
     for (county, month), group in baseline[baseline.attendance.isna()].groupby(
             ['county', 'attendance_month'], sort=True):
         case_id = f'{county.upper()}-{month}'
-        scoped = [d for d in docs if d['county'] == county and d['month'] == month]
+        scoped = [d for d in docs if d['county'] == county and d['month'] == month and d.get('document_type','meeting') == 'meeting']
         dates = sorted({d['meeting_date'] for d in scoped})
         cases.append(dict(case_id=case_id, county=county, attendance_month=month,
                           meeting_dates=dates, source_pdf_count=len({d['pdf_sha256'] for d in scoped})))
@@ -90,7 +92,7 @@ def prepare_experiment(original_archive, memory, baseline_archive=None):
             scores = defaultdict(float)
             by_id = {d['chunk_id']: d for d in pool}
             for query in QUERIES:
-                found = retrieve(query, pool, backend='bm25', top_k=3)
+                found = cached_search(query, pool, query_cache, top_k=3)
                 logs.append(dict(case_id=case_id, meeting_date=date, query=query, **found))
                 for rank, doc in enumerate(found['citations'], 1):
                     scores[doc['chunk_id']] += 1 / (60 + rank)
@@ -110,7 +112,8 @@ def prepare_experiment(original_archive, memory, baseline_archive=None):
                     outcome_window=meta['outcome_window'],
                     baseline_rule=baseline_meta.get('rule_reconstruction', 'Observed records only'),
                     missing_county_months=len(cases), meetings_with_context=len(tasks),
-                    actual_bm25_queries=len(logs), queries=QUERIES, top_k_per_query=3,
+                    actual_bm25_queries=sum(not r['memory_reused'] for r in logs),
+                    retrieval_memory_hits=sum(r['memory_reused'] for r in logs), queries=QUERIES, top_k_per_query=3,
                     max_chunks_per_meeting=3, system_prompt=SYSTEM,
                     human_confirmation=False, confirmatory_analysis=False,
                     scope='Supplied dated meetings only; meeting coverage and correctness remain unvalidated')
@@ -161,13 +164,28 @@ def parse_candidate(raw, task):
     return value
 
 
-def run_completion(prepared, generate, model_metadata, progress=None):
+def generation_key(task, protocol):
+    return digest(dict(system=SYSTEM, model=protocol['model_id'],
+        revision=protocol['model_revision'], settings=protocol['model_settings'],
+        county=task['county'], meeting_date=task['meeting_date'],
+        evidence=[{k:d[k] for k in ['chunk_id','source_file','page','text']} for d in task['evidence']]))
+
+
+def run_completion(prepared, generate, model_metadata, progress=None, output_cache=None):
     """Real runtime is injected; test fakes must identify themselves as software tests."""
+    output_cache = {} if output_cache is None else output_cache
     outputs, by_case = [], defaultdict(list)
     for index, task in enumerate(prepared['tasks']):
-        generated = generate(task)
+        cache_key = generation_key(task, prepared['protocol'])
+        reused = cache_key in output_cache
+        if reused:
+            generated = output_cache[cache_key]
+        else:
+            generated = generate(task)
+            output_cache[cache_key] = generated
         record = dict(case_id=task['case_id'], meeting_date=task['meeting_date'],
-                      human_confirmed=False, output_kind='AI_unreviewed', **generated)
+                      human_confirmed=False, output_kind='AI_unreviewed', **generated,
+                      generation_key=cache_key, generation_reused=reused)
         try:
             record['parsed'] = parse_candidate(generated['raw_response'], task)
             record['automatic_checks'] = 'passed_mechanical_checks_not_factual_validation'
@@ -188,7 +206,7 @@ def run_completion(prepared, generate, model_metadata, progress=None):
                          attendance_month=case['attendance_month'], original_value=None,
                          ai_value=sum(r['parsed']['count'] for r in successful) / len(successful) if complete else None,
                          status='AI_unreviewed_candidate' if complete else 'unknown',
-                         supplied_meetings=len(case['meeting_dates']), model_calls=len(records),
+                         supplied_meetings=len(case['meeting_dates']), model_calls=sum(not r['generation_reused'] for r in records), evidence_assessments=len(records),
                          candidate_meetings=len(successful), human_confirmed=False,
                          eligible_for_confirmatory_analysis=False,
                          evidence=json.dumps([dict(meeting_date=r['meeting_date'], **r['parsed'])
@@ -196,7 +214,8 @@ def run_completion(prepared, generate, model_metadata, progress=None):
                          reason='All supplied meeting counts have AI candidates; coverage unvalidated' if complete
                          else 'No matching source' if not case['meeting_dates']
                          else 'Insufficient, rejected or incomplete meeting evidence'))
-    summary = dict(prepared['protocol'], model=model_metadata, llm_calls=len(outputs),
+    summary = dict(prepared['protocol'], model=model_metadata, llm_calls=sum(not r['generation_reused'] for r in outputs),
+                   generation_memory_hits=sum(r['generation_reused'] for r in outputs),
                    numeric_model_outputs=sum(bool(r['parsed'] and r['parsed']['status']=='candidate') for r in outputs),
                    rejected_outputs=sum(r['automatic_checks']=='rejected' for r in outputs),
                    candidate_county_months=sum(r['ai_value'] is not None for r in rows),
@@ -279,3 +298,27 @@ def compare_experiment(prepared, result):
         }.items():
             z.writestr(name, value)
     return summary, comparison, output.getvalue()
+
+
+def import_generation_memory(raw, original_archive, baseline_archive):
+    """Import only raw prior answers with an identical frozen generation context."""
+    with ZipFile(BytesIO(raw)) as z:
+        required = ['source_memory.json','run_manifest.json','model_outputs.json']
+        if any(z.getinfo(n).file_size > 40*1024*1024 for n in required):
+            raise AuditError('Prior memory member exceeds 40 MB.')
+        memory = json.loads(z.read('source_memory.json'))
+        protocol = json.loads(z.read('run_manifest.json'))
+        outputs = json.loads(z.read('model_outputs.json'))
+    old = prepare_experiment(original_archive,memory,baseline_archive)
+    for key in ['model_id','model_revision','model_settings','system_prompt']:
+        if old['protocol'][key] != protocol.get(key):
+            raise AuditError('Prior model or generation contract differs.')
+    by_case = {(r['case_id'],r['meeting_date']):r for r in outputs}
+    cache = {}
+    for task in old['tasks']:
+        row = by_case.get((task['case_id'],task['meeting_date']))
+        if row and isinstance(row.get('raw_response'),str):
+            cache[generation_key(task,old['protocol'])] = {
+                key:row[key] for key in ['raw_response','input_sha256','input_tokens',
+                                        'output_tokens','elapsed_seconds','finish_reason'] if key in row}
+    return cache

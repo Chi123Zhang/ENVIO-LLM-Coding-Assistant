@@ -1,5 +1,7 @@
 """Exploratory H3 attendance sensitivity using the current session's RAG candidates."""
 from io import BytesIO
+from hashlib import sha256
+import json
 from zipfile import ZipFile, ZIP_DEFLATED
 
 import numpy as np
@@ -21,7 +23,7 @@ def interpolate(observed, month):
     return float(np.interp(0, delta[[a, b]], observed.iloc[[a, b]]))
 
 
-def run_hybrid(archive, candidates):
+def run_hybrid(archive, candidates, *, method="interpolation"):
     with ZipFile(BytesIO(archive)) as src:
         data = pd.read_csv(src.open('county_month.csv'))
     before = analyse_reconstruction(source_only_archive(archive))[1]
@@ -29,6 +31,23 @@ def run_hybrid(archive, candidates):
     observed = data[keys + ['attendance']].drop_duplicates().dropna()
     rng = np.random.default_rng(20261120)
     sampled, ledger = {}, []
+    validation = []
+    for county, group in observed.groupby('county'):
+        obs = group.set_index('attendance_month').attendance.sort_index()
+        for held, actual in obs.items():
+            distances = np.abs(pd.PeriodIndex(obs.index,freq='M').asi8-pd.Period(held,freq='M').ordinal)
+            ref = obs[(distances>0)&(distances<=6)]
+            predicted = interpolate(obs,held)
+            if len(ref)>=3 and predicted is not None:
+                validation.append(dict(county=county,month=held,observed=actual,
+                                       interpolation=predicted,local_donors=ref.mean()))
+    validation = pd.DataFrame(validation,columns=['county','month','observed','interpolation','local_donors'])
+    scores = {name:float((validation[name]-validation.observed).abs().mean())
+              for name in ['interpolation','local_donors']} if len(validation) else {}
+    if method == 'select_by_masked_error':
+        method = min(scores,key=scores.get) if scores else 'interpolation'
+    if method not in {'interpolation','local_donors'}:
+        raise ValueError('Unsupported attendance estimator.')
     eligible = data[data.attendance.isna() & data.outcome_available &
                     data[CONFIG['mediators']].notna().any(axis=1)]
     relevant = set(eligible[keys].itertuples(index=False, name=None))
@@ -42,9 +61,16 @@ def run_hybrid(archive, candidates):
         if row['status'] == 'AI_unreviewed_candidate' and pd.notna(value):
             sampled[key] = np.full(40, value)
             basis = 'Source-linked AI estimate (unreviewed)'
-        elif row['model_calls'] > 0:
-            value = interpolate(obs, month)
-            if value is not None:
+        elif row.get('evidence_assessments',row['model_calls']) > 0:
+            distances = np.abs(pd.PeriodIndex(obs.index,freq='M').asi8-pd.Period(month,freq='M').ordinal)
+            ref = obs[(distances>0)&(distances<=6)]
+            if method == 'local_donors' and len(ref)>=3:
+                value = float(ref.mean())
+                sampled[key] = np.array([rng.choice(ref.values,p=rng.dirichlet(np.ones(len(ref)))) for _ in range(40)])
+                basis = 'Statistical local donors'
+            else:
+                value = interpolate(obs, month) if method=='interpolation' else None
+            if method == 'interpolation' and value is not None:
                 errors = []
                 for held, actual in obs.items():
                     prediction = interpolate(obs, held)
@@ -85,5 +111,18 @@ def run_hybrid(archive, candidates):
     buf = BytesIO()
     with ZipFile(buf,'w',ZIP_DEFLATED) as z:
         z.writestr('paths.csv', paths.to_csv(index=False))
+        z.writestr('masked_validation.csv',validation.to_csv(index=False))
+        z.writestr('protocol.json',json.dumps(dict(method=method,masked_mae=scores,
+            validation_rows=len(validation),seed=20261120,draws=40,
+            source_archive_sha256=sha256(archive).hexdigest(),
+            method_selection='Attendance prediction error; mortality and p-values not used',
+            source_candidates=candidates),indent=2))
+        z.writestr('draws.csv',pd.DataFrame([
+            dict(county=k[0],attendance_month=k[1],draw=i,value=v)
+            for k, values in sampled.items() for i,v in enumerate(values)]).to_csv(index=False))
         z.writestr('attendance_basis.csv', audit.to_csv(index=False))
+        z.writestr('README.txt','Exploratory sensitivity analysis. Statistical attendance uses 40 masked-error draws. '
+                   'AI counts are unreviewed and treated as fixed; extraction uncertainty is not calibrated. '
+                   'Interpolation uses meetings before and after the gap and is retrospective. '
+                   'Six menu-mediator paths are reported together. Complete causal H3 is unresolved.')
     return paths, audit, buf.getvalue()

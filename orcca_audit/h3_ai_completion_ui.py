@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from .engine import AuditError
-from .h3_ai_completion import prepare_experiment, run_completion, compare_experiment
+from .h3_ai_completion import prepare_experiment, run_completion, compare_experiment, import_generation_memory, generation_key
 from .h3_attendance_evidence import source_run_id
 from .policy import private_uploads_allowed
 
@@ -40,9 +40,14 @@ def render_ai_experiment(archive):
     st.caption('This isolates attendance additions: baseline implementation rules, outcome, lags and '
                'statistical specification stay fixed. Evidence gaps remain unknown. Mechanical quote '
                'checks do not establish factual accuracy or complete meeting coverage.')
+    prior = st.file_uploader('Previous RAG experiment ZIP (optional)',type=['zip'],
+                             key='h3_prior_rag_memory')
+    prior_bytes = prior.getvalue() if prior else b''
+    st.caption('An earlier experiment can supply raw responses when model settings and exact source '
+               'contexts match. Imported answers pass the current citation checks again.')
     permitted = st.checkbox('Use eligible AI candidates only in a separate unreviewed experiment',
                             value=False, key='h3_ai_opt_in')
-    fingerprint = sha256(archive + baseline + memory['memory_sha256'].encode()).hexdigest()
+    fingerprint = sha256(archive + baseline + memory['memory_sha256'].encode() + prior_bytes).hexdigest()
     stored = st.session_state.get('h3_ai_experiment')
     if stored and stored[0] != fingerprint:
         st.session_state.pop('h3_ai_experiment', None)
@@ -53,20 +58,27 @@ def render_ai_experiment(archive):
         stored = None
         try:
             with st.spinner('Preparing source-bound retrieval and loading the fixed local model…'):
-                prepared = prepare_experiment(archive, memory, baseline)
-                if prepared['tasks']:
+                prepared = prepare_experiment(archive, memory, baseline,
+                    query_cache=st.session_state.setdefault('h3_query_memory',{}))
+                answer_memory = st.session_state.setdefault('h3_generation_memory',{})
+                if prior_bytes:
+                    answer_memory.update(import_generation_memory(prior_bytes,archive,baseline))
+                needs_generation = any(generation_key(t,prepared['protocol']) not in answer_memory
+                                       for t in prepared['tasks'])
+                if needs_generation:
                     from .h3_ai_runtime import generator
                     generate, model = generator()
                 else:
                     generate = None
-                    model = dict(status='not_loaded_no_matching_source_context')
+                    model = dict(status='previous_outputs_rechecked_or_no_matching_context')
             progress = st.progress(0.0)
             status = st.empty()
             def update(done, total, record):
                 progress.progress(done / total)
                 status.caption(f'Local generation {done}/{total}: {record["case_id"]}')
             with st.spinner('Generating AI candidates and fitting the unchanged exploratory models…'):
-                result = run_completion(prepared, generate, model, progress=update)
+                result = run_completion(prepared, generate, model, progress=update,
+                    output_cache=st.session_state.setdefault('h3_generation_memory',{}))
                 comparison = compare_experiment(prepared, result)
             stored = fingerprint, result, comparison
             st.session_state['h3_ai_experiment'] = stored
@@ -83,6 +95,7 @@ def render_ai_experiment(archive):
                  f'{summary["candidate_county_months"]} AI candidate county-months; '
                  f'{summary["applied_to_experimental_county_months"]} experimental additions; '
                  '0 human confirmations.**')
+        st.caption(f"Generation memory reused {summary.get('generation_memory_hits',0)} previous responses after checking the exact model, prompt and source context.")
         st.dataframe(pd.DataFrame(result['candidates'])[['case_id','ai_value','status','model_calls','reason']],
                      hide_index=True)
         st.dataframe(comparison, hide_index=True)
@@ -98,18 +111,26 @@ def render_ai_experiment(archive):
             'orcca_h3_AI_UNREVIEWED_RAG_experiment.zip', 'application/zip', key='h3_ai_download')
         st.subheader('RAG and attendance interpolation')
         st.caption('Run six exploratory paths. Where dated meeting evidence was searched, the model '
-                   'uses an eligible unreviewed RAG count first. Otherwise it interpolates between '
-                   'observed meetings in the same county within six months on either side and draws '
-                   '40 estimates using held-out attendance errors. AI counts are treated as fixed. '
+                   'uses an eligible unreviewed RAG count first. Otherwise it uses observed '
+                   'meetings in the same county within six months and generates 40 estimates. '
+                   'Automatic selection compares interpolation and local donors on masked attendance. AI counts are treated as fixed. '
                    'Other gaps stay unknown.')
+        estimator = st.selectbox('Attendance estimator',
+            ['select_by_masked_error','interpolation','local_donors'],
+            help='Choose using attendance prediction error, or run a named sensitivity method.')
         if st.button('Run H3 with RAG and interpolation', disabled=not permitted):
             from .h3_hybrid_attendance import run_hybrid
             result.pop('hybrid_attendance', None)
             with st.spinner('Comparing six H3 pathways…'):
-                result['hybrid_attendance'] = run_hybrid(baseline, result['candidates'])
+                result['hybrid_attendance'] = (estimator,run_hybrid(baseline, result['candidates'],method=estimator))
         hybrid = result.get('hybrid_attendance')
-        if permitted and hybrid:
-            paths, audit, package = hybrid
+        if permitted and hybrid and hybrid[0]==estimator:
+            paths, audit, package = hybrid[1]
+            with ZipFile(BytesIO(package)) as validation_zip:
+                protocol = json.loads(validation_zip.read('protocol.json'))
+            st.caption(f"Attendance estimator: {protocol['method']}; "
+                       f"{protocol['validation_rows']} jointly masked records. "
+                       f"Mean absolute errors: {protocol['masked_mae']}.")
             st.dataframe(paths, hide_index=True)
             st.dataframe(audit, hide_index=True)
             st.download_button('Download hybrid H3 comparison', package, 'h3_hybrid.zip', 'application/zip')
