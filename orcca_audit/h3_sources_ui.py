@@ -21,6 +21,9 @@ def synthetic_sources():
 
 
 def clear_sources():
+    for key in ['h3_support_corpus','h3_support_search','h3_support_parse_memory',
+                'h3_meeting_parse_memory','h3_query_memory','h3_generation_memory']:
+        st.session_state.pop(key,None)
     st.session_state.pop('implementation_replay_result', None)
     st.session_state.pop('h3_site_path', None)
     st.session_state.pop('h3_site_estimates', None)
