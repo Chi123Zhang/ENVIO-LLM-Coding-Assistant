@@ -23,6 +23,7 @@ def synthetic_sources():
 def clear_sources():
     st.session_state.pop('implementation_replay_result', None)
     st.session_state.pop('h3_site_estimates', None)
+    st.session_state.pop('site_retrospective', None)
     st.session_state.pop('h3_source_report', None)
     st.session_state.pop('h3_source_analysis', None)
     st.session_state.pop('h3_attendance_evidence', None)
@@ -165,6 +166,11 @@ def render(private):
                 st.info('These inputs contain no eligible delivery-site fields with a matching dictionary definition.')
             st.download_button('Download site estimates and validation', download,
                                'delivery_site_validation.zip', 'application/zip')
+    if private and not synthetic:
+        from .retrospective_sites import render as render_sites
+        render_sites(files, fingerprint)
+    else:
+        st.session_state.pop('site_retrospective', None)
     if st.button('Rebuild H3 from source files', disabled=not ready, key='h3_sources_run'):
         st.session_state.pop('h3_source_report', None)
         st.session_state.pop('h3_source_analysis', None)
