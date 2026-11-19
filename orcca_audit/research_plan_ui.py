@@ -8,7 +8,12 @@ def render():
     saved = st.session_state.get('research_plan_saved', DEFAULT)
     with st.expander('0 · Research question and data requirements', expanded=True):
         st.write('Name the question first. The workspace will inventory the supplied sources and show what still needs definition or evidence. It will not select a causal model or invent missing measures.')
-        st.caption('Public practice: use a fictional question. Do not enter private study details. Planning text stays outside the evidence index and never goes to a model API.')
+        from .policy import private_uploads_allowed
+        if private_uploads_allowed():
+            st.caption('Private session: enter an authorized research question. Planning text stays outside '
+                       'the evidence index and never goes to a model API.')
+        else:
+            st.caption('Public practice: use a fictional question. Do not enter private study details. Planning text stays outside the evidence index and never goes to a model API.')
         with st.form('research_question_form'):
             p = {}
             p['mode'] = st.selectbox('Planning route', MODES, index=MODES.index(saved['mode']), key='question_mode')

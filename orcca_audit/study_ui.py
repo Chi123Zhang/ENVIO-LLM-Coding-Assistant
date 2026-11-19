@@ -60,7 +60,7 @@ def render_search(project):
     st.write('For a missing status, open Evidence Completion, inspect the candidate and its source, and record an explicit review decision.')
     st.page_link('pages/03_ORCCA_Evidence_Completion.py',label='Review source-backed completion candidates')
     st.page_link('app.py',label='Optional: review an authorized document coding result')
-    st.caption("Interviews, minutes and attendance remain auxiliary. Reuse Eric's existing work where available. Generic coding labels do not become validated H3 measures automatically.")
+    st.caption("Interviews and minutes provide supporting evidence. Defined attendance measures can be structured coalition-process inputs. Reuse Eric's existing work where available; generic coding labels do not become validated H3 measures automatically.")
 
 
 def render():
@@ -76,7 +76,9 @@ def render():
     a.markdown('**1 · Coalition process (X)**');a.caption('One defined exposure, source and applicable time')
     b.markdown('**2 · EBP implementation / reach (M)**');b.caption('A validated intermediate measure from the Tracker or reach data')
     c.markdown('**3 · Later overdose outcome (Y)**');c.caption('A later, consistently defined outcome and confounders')
-    st.info('Open H3 source reconstruction to build county-month inputs from the original files, inspect coverage and download the source report.')
+    st.info('To run the current attendance pathway, open H3 source reconstruction: upload the three original '
+            'tables, add the dictionary and attendance CSVs, then retrieve supporting meeting evidence. '
+            'Project inputs below is the separate Tracker review workflow.')
     private=private_uploads_allowed()
     st.caption('Private session: research uploads stay in this server session; external generation is disabled.' if private else 'Public practice: synthetic data only. Research uploads and external generation are disabled.')
     from .research_plan_ui import render as render_question
@@ -112,6 +114,8 @@ def render():
     with tabs[0]:
         st.subheader('Start with the Tracker')
         st.write('No H2a panel is required. The Tracker is the primary implementation source; the other files add definitions, potential outcomes or auxiliary evidence.')
+        st.caption('For the original-source statistical analysis, use the H3 source reconstruction tab. '
+                   'It groups the three primary tables separately from definitions, attendance inputs and RAG evidence.')
         if private and st.radio('Input source',['Synthetic practice','Private research upload'],key='study_input_route',on_change=invalidate,args=(st.session_state,'Input source changed. Load the intended project again.'))=='Private research upload':
             epoch=str(st.session_state.get('workflow_upload_epoch',0))
             for role,label,types in [('raw_tracker','Original Tracker workbook',['xlsx']),('dictionary','REDCap dictionary (recommended)',['xlsx']),
