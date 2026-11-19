@@ -138,7 +138,7 @@ def build_evidence_review(source_archive, pdf_files, *, synthetic=False, parse_c
         uploaded_files=len(pdf_files), excluded_files=sum(r['status']=='excluded' for r in inventory),
         duplicate_files=sum(r['status']=='duplicate_bytes' for r in inventory),
         parsed_from_memory=sum(r.get('parse_reused',False) for r in inventory),
-        retrieval_memory_hits=sum(r.get('memory_reused',False) for r in logs),
+        retrieval_memory_hits=sum(bool(r['citations']) and r.get('memory_reused',False) for r in logs),
         file_inventory=inventory,
         cases_with_same_county_month_pdf=int(queue.source_pdfs.gt(0).sum()),
         actual_bm25_queries=sum(bool(r['citations']) and not r.get('memory_reused',False) for r in logs),
