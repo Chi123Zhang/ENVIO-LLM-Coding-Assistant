@@ -1,5 +1,33 @@
 # Real H3 research on the existing website
 
+## Streamlit-managed team-private deployment
+
+An alternative to a separate OIDC client is Streamlit Cloud's existing viewer
+access control. This makes the entire app private, including the demonstration.
+The operator must FIRST set Sharing to **Only specific people can view this app**
+and verify that both the normal URL and the internal application path reject an
+unauthenticated browser. Do not invite additional viewers without authorization.
+
+Only after that verification, add the following noncredential configuration in
+Cloud Secrets, preserving all existing values:
+
+```toml
+[orcca_platform_private]
+enabled = true
+visibility_verified = "only_specific_people"
+app_host = "expression-4wfrtnmolvi6ksdsst2h3c.streamlit.app"
+```
+
+This is an operator-controlled deployment mode: the app does not query the Cloud
+sharing API or independently attest the ACL at runtime. It trusts the verified
+upstream platform boundary and matches the hosted HTTPS URL. Do not enable it on
+a public deployment. Before making the app public again, disable this mode,
+restart and clear research sessions, then verify the upload controls are closed.
+Research upload contents and generation restrictions are unchanged. No Google
+Cloud client registration is required for this route.
+
+## Optional app-level OIDC route
+
 The public URL can retain its synthetic demonstration while authenticated,
 allowlisted researchers use the original-source upload controls in their own
 server sessions. This code is disabled by default. Enabling it does not establish

@@ -44,3 +44,17 @@ def test_policy_uses_provider_gate_and_preserves_local_mode(monkeypatch):
     assert not private_uploads_allowed()
     monkeypatch.setenv('ORCCA_ALLOW_PRIVATE_UPLOADS', '1')
     assert private_uploads_allowed()
+
+
+def test_platform_boundary_requires_explicit_hosted_private_configuration():
+    from orcca_audit.research_access import platform_private_configured
+    config = {'enabled': True, 'visibility_verified': 'only_specific_people',
+              'app_host': 'fictional-test.streamlit.app'}
+    assert platform_private_configured(config, 'https://fictional-test.streamlit.app/ORCCA_Workflow')
+    for url in ['http://fictional-test.streamlit.app/', 'https://outsider.streamlit.app/',
+                'https://fictional-test.streamlit.app.evil.example/', 'http://localhost:8501/']:
+        assert not platform_private_configured(config, url)
+    for change in [{'enabled': False}, {'enabled': 'true'}, {'visibility_verified': 'public'},
+                   {'app_host': ''}]:
+        assert not platform_private_configured(dict(config, **change),
+                                               'https://fictional-test.streamlit.app/')
