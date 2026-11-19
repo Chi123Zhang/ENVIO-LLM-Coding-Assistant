@@ -132,7 +132,9 @@ def run_hybrid(archive, candidates, *, method="interpolation"):
         z.writestr('attendance_basis.csv', audit.to_csv(index=False))
         z.writestr('README.txt','Open results_summary.csv for approximate p-values, 95% intervals and significance at p < 0.05. '
                    'paths.csv retains all raw model columns and fit diagnostics. '
-                   'Exploratory sensitivity analysis. Statistical attendance uses 40 masked-error draws. '
+                   'Exploratory sensitivity analysis. Statistical attendance uses 40 draws. '
+                   'Read blocked_validation_scores.csv for separate method-selection and held-out test errors. '
+                   'Attendance draw ranges are descriptive, not calibrated confidence intervals. '
                    'AI counts are unreviewed and treated as fixed; extraction uncertainty is not calibrated. '
                    'Interpolation uses meetings before and after the gap and is retrospective. '
                    'Six menu-mediator paths are reported together. Complete causal H3 is unresolved.')
