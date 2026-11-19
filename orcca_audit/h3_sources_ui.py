@@ -32,8 +32,20 @@ def clear_sources():
 
 def render(private):
     st.subheader('Build H3 inputs from original sources')
-    st.write('Start with the original Tracker, its REDCap dictionary, monthly and annual CDC tables, '
-             'and meeting attendance CSVs. The report shows the source coverage for each part of the pathway.')
+    st.write('Start with three original tables: the Tracker, monthly CDC deaths and annual CDC deaths. '
+             'Add the dictionary and attendance records to define and measure the selected H3 pathway. '
+             'Meeting documents provide supporting evidence in a separate retrieval step.')
+    st.markdown('**How the files are used**')
+    st.table([
+        {'Input group': '1 · Primary data', 'Files': 'Tracker + monthly CDC + annual CDC',
+         'Use': 'Implementation records, monthly death counts, annual population and consistency checks'},
+        {'Input group': '2 · Definitions and process data', 'Files': 'REDCap dictionary + attendance CSVs',
+         'Use': 'Field and status definitions; recorded coalition attendance (X) for the current pathway'},
+        {'Input group': '3 · RAG evidence', 'Files': 'Meeting PDFs for targeted attendance verification',
+         'Use': 'Retrieve original passages and page references; review evidence before accepting a value'},
+    ])
+    st.caption('The three primary tables alone do not supply coalition attendance. Attendance CSVs are '
+               'structured model inputs, not just retrieval documents. No H2a panel is required.')
     options = ['Synthetic source files', 'Private research files'] if private else ['Synthetic source files']
     route = st.radio('Source reconstruction data', options, key='h3_sources_route')
     synthetic = route == options[0]
@@ -59,18 +71,28 @@ def render(private):
         st.caption('Upload authorized files to this private server session.')
         epoch = str(st.session_state.get('h3_source_epoch', 0))
         files = {}
+        st.subheader('1 · Primary data: three original tables')
+        st.caption('Upload the original records here. Death counts and mortality rates are not interchangeable.')
         for role, label, types in [
             ('tracker', 'Original Tracker workbook', ['xlsx']),
-            ('dictionary', 'REDCap dictionary', ['xlsx']),
             ('monthly', 'Original CDC monthly table', ['csv', 'tsv', 'xls', 'xlsx']),
             ('annual', 'Original CDC annual table', ['csv', 'tsv', 'xls', 'xlsx']),
         ]:
             file = st.file_uploader(label, type=types, key='h3_sources_' + role + epoch)
             if file:
                 files[role] = (file.name, file.getvalue())
+        st.subheader('2 · Definitions and coalition-process data')
+        st.caption('The dictionary defines version-specific fields and status rules. Attendance records supply '
+                   'the exposure for the attendance → implementation → death-count pathway. Both are required '
+                   'by this reconstruction; meeting PDFs do not replace them automatically.')
+        dictionary = st.file_uploader('REDCap dictionary', type=['xlsx'], key='h3_sources_dictionary' + epoch)
+        if dictionary:
+            files['dictionary'] = (dictionary.name, dictionary.getvalue())
         uploads = st.file_uploader('Original attendance records', type=['csv'], accept_multiple_files=True,
                                    key='h3_sources_attendance' + epoch)
         attendance = [(file.name, file.getvalue()) for file in uploads]
+        st.caption('Next: rebuild the structured inputs. The separate RAG evidence upload appears below '
+                   'after reconstruction, so retrieval targets the gaps in these files.')
         a, b = st.columns(2)
         start = a.text_input('Outcome start month (YYYY-MM)', '2021-02', key='h3_sources_start')
         end = b.text_input('Outcome end month (YYYY-MM)', '2022-06', key='h3_sources_end')
@@ -87,6 +109,14 @@ def render(private):
             st.error(str(error))
             files.pop('monthly')
     ready = len(files) == 4 and bool(attendance)
+    if not synthetic and not ready:
+        required = {'tracker': 'Tracker', 'monthly': 'monthly CDC', 'annual': 'annual CDC',
+                    'dictionary': 'REDCap dictionary'}
+        missing = [label for role, label in required.items() if role not in files]
+        if not attendance:
+            missing.append('attendance CSVs')
+        st.info('Before reconstruction, add: ' + ', '.join(missing) + '. Meeting PDFs are optional evidence, '
+                'not a substitute for these inputs.')
     fingerprint = hashlib.sha256(json.dumps([
         route, full_demo, start, end,
         [(role, name, hashlib.sha256(raw).hexdigest()) for role, (name, raw) in sorted(files.items())],

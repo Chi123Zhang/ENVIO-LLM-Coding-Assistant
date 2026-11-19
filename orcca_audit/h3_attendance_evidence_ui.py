@@ -32,9 +32,16 @@ def compare_approved(archive, memory, reviews):
 
 def render_evidence(archive):
     st.subheader('Find evidence for missing attendance')
-    st.caption('Upload original meeting PDFs. County and date in each filename restrict retrieval to the '
+    st.markdown('**3 · RAG evidence: targeted attendance verification**')
+    st.write('The primary tables, dictionary and attendance CSVs have already been read above. '
+             'This upload adds supporting documents only; it does not replace the structured inputs.')
+    st.caption('This step accepts meeting PDFs. Interviews and other documents can be searched in the '
+               'project evidence workflow, but are not automatically converted to attendance values here.')
+    st.caption('County and date in each filename restrict retrieval to the '
                'missing exposure month. BM25 retrieves original excerpts and preserves page references. '
                'A retrieved passage is not a verified headcount. No external model is called.')
+    st.caption('Source memory retains original excerpts, locators and retrieval logs. It does not train a '
+               'Transformer or generate missing values. Accepted corrections require an explicit review.')
     epoch = str(st.session_state.get('h3_source_epoch', 0))
     uploads = st.file_uploader('Meeting PDFs for attendance verification', type=['pdf'],
                                accept_multiple_files=True, key='h3_attendance_pdfs_' + epoch)
