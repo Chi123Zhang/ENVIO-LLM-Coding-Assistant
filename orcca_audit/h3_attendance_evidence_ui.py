@@ -118,7 +118,8 @@ def render_evidence(archive):
     sensitivity = st.session_state.get('h3_evidence_sensitivity')
     if sensitivity and sensitivity[0]==sensitivity_key:
         paths,audit,package = sensitivity[1]
-        st.dataframe(paths,hide_index=True)
+        from .h3_results_ui import render_path_results
+        render_path_results(paths, key='h3_evidence')
         st.dataframe(audit,hide_index=True)
         st.download_button('Download evidence-gated H3 report',package,'h3_evidence_sensitivity.zip','application/zip')
     st.download_button('Download attendance review package', report, 'orcca_attendance_evidence_review.zip',

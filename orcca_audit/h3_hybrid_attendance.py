@@ -111,6 +111,8 @@ def run_hybrid(archive, candidates, *, method="interpolation"):
     buf = BytesIO()
     with ZipFile(buf,'w',ZIP_DEFLATED) as z:
         z.writestr('paths.csv', paths.to_csv(index=False))
+        from .h3_results_ui import statistical_summary
+        z.writestr('results_summary.csv', statistical_summary(paths).to_csv(index=False))
         z.writestr('masked_validation.csv',validation.to_csv(index=False))
         z.writestr('protocol.json',json.dumps(dict(method=method,masked_mae=scores,
             validation_rows=len(validation),seed=20261120,draws=40,
@@ -121,7 +123,9 @@ def run_hybrid(archive, candidates, *, method="interpolation"):
             dict(county=k[0],attendance_month=k[1],draw=i,value=v)
             for k, values in sampled.items() for i,v in enumerate(values)]).to_csv(index=False))
         z.writestr('attendance_basis.csv', audit.to_csv(index=False))
-        z.writestr('README.txt','Exploratory sensitivity analysis. Statistical attendance uses 40 masked-error draws. '
+        z.writestr('README.txt','Open results_summary.csv for approximate p-values, 95% intervals and significance at p < 0.05. '
+                   'paths.csv retains all raw model columns and fit diagnostics. '
+                   'Exploratory sensitivity analysis. Statistical attendance uses 40 masked-error draws. '
                    'AI counts are unreviewed and treated as fixed; extraction uncertainty is not calibrated. '
                    'Interpolation uses meetings before and after the gap and is retrospective. '
                    'Six menu-mediator paths are reported together. Complete causal H3 is unresolved.')
