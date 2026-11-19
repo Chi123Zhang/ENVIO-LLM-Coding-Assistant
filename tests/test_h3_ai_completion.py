@@ -103,6 +103,9 @@ def test_experimental_report_keeps_unreviewed_label_and_unique_zip_members():
             page=inner.read('START_HERE.html').decode()
             assert 'AI-unreviewed experimental attendance additions: 1' in page
             assert 'Evidence-reviewed additions: 1' not in page
+            metadata=json.loads(inner.read('run_metadata.json'))
+            assert metadata['specification']['input_completion']=='AI-unreviewed source-based candidates'
+            assert 'no human confirmation' in metadata['specification']['imputation']
 
 
 def test_browser_experiment_requires_private_route_and_explicit_opt_in(monkeypatch):

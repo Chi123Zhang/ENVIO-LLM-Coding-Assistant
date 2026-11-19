@@ -109,7 +109,9 @@ def analyse_reconstruction(source_archive):
         models_fitted=int(diagnostics.point_fit.eq('finite_fit').sum()),
         specifications_attempted=len(checks),
         inference_available=int(sum(c.get('inference') == 'Approximate jackknife' for c in checks)),
-        specification=CONFIG,
+        specification=(dict(CONFIG, input_completion='AI-unreviewed source-based candidates',
+                            imputation='Experimental AI attendance additions; no human confirmation')
+                       if 'ai_unreviewed_attendance_county_months' in metadata else CONFIG),
     )
     addition_label = ('AI-unreviewed experimental attendance additions' if
                       metadata.get('eligible_for_confirmatory_analysis') is False and
