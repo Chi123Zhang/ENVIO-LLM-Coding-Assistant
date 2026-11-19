@@ -21,7 +21,7 @@ def count(value):
     return int(token) if token.isascii() and token.isdigit() else None
 
 
-def extract(tracker, dictionary):
+def extract(tracker, dictionary, *, include_reach_id=False):
     sheets = read_workbook(tracker[1], positional_sheets=('Sheet1',))
     raw, lookup = sheets['orcca_tracker_v2'], sheets['Sheet1']
     if lookup.iloc[:, 0].duplicated().any() or lookup.iloc[:, :2].isna().any().any():
@@ -60,6 +60,8 @@ def extract(tracker, dictionary):
                     venue=code(row.get(field(venue))), planned=count(row.get(plan)) if plan_known else None, recorded=actual,
                     plan_cell=columns.get(plan,'')+str(row['_source_row']) if plan in columns else '',
                     target_cell=columns[target]+str(row['_source_row']), dictionary_row=definition['_source_row']))
+                if include_reach_id:
+                    records[-1]['reach_id'] = code(row.get(field('_reach_id')))
     if len({(r['county'], r['month'], r['menu'], r['slot']) for r in records}) != len(records):
         raise ValueError('Review duplicate strategy-slot records within a county-month.')
     return records
