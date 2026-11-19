@@ -131,6 +131,7 @@ def render_ai_experiment(archive):
             st.caption(f"Attendance estimator: {protocol['method']}; "
                        f"{protocol['validation_rows']} jointly masked records. "
                        f"Mean absolute errors: {protocol['masked_mae']}.")
-            st.dataframe(paths, hide_index=True)
+            from .h3_results_ui import render_path_results
+            render_path_results(paths, key='h3_ai_hybrid')
             st.dataframe(audit, hide_index=True)
             st.download_button('Download hybrid H3 comparison', package, 'h3_hybrid.zip', 'application/zip')
