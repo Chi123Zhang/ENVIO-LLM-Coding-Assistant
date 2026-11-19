@@ -96,3 +96,20 @@ def render_ai_experiment(archive):
                    'labels here, so accuracy and time-saving benefits have not been measured.')
         st.download_button('Download AI-unreviewed RAG experiment', report,
             'orcca_h3_AI_UNREVIEWED_RAG_experiment.zip', 'application/zip', key='h3_ai_download')
+        st.subheader('RAG and attendance interpolation')
+        st.caption('Run six exploratory paths. Where dated meeting evidence was searched, the model '
+                   'uses an eligible unreviewed RAG count first. Otherwise it interpolates between '
+                   'observed meetings in the same county within six months on either side and draws '
+                   '40 estimates using held-out attendance errors. AI counts are treated as fixed. '
+                   'Other gaps stay unknown.')
+        if st.button('Run H3 with RAG and interpolation', disabled=not permitted):
+            from .h3_hybrid_attendance import run_hybrid
+            result.pop('hybrid_attendance', None)
+            with st.spinner('Comparing six H3 pathways…'):
+                result['hybrid_attendance'] = run_hybrid(baseline, result['candidates'])
+        hybrid = result.get('hybrid_attendance')
+        if permitted and hybrid:
+            paths, audit, package = hybrid
+            st.dataframe(paths, hide_index=True)
+            st.dataframe(audit, hide_index=True)
+            st.download_button('Download hybrid H3 comparison', package, 'h3_hybrid.zip', 'application/zip')
