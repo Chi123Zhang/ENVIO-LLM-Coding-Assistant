@@ -21,6 +21,7 @@ def synthetic_sources():
 
 
 def clear_sources():
+    st.session_state.pop('h3_site_estimates', None)
     st.session_state.pop('h3_source_report', None)
     st.session_state.pop('h3_source_analysis', None)
     st.session_state.pop('h3_attendance_evidence', None)
@@ -128,6 +129,39 @@ def render(private):
         st.session_state.pop('h3_source_report', None)
         st.session_state.pop('h3_source_analysis', None)
         stored = None
+    previous = st.session_state.get('h3_site_estimates')
+    if previous and previous[0] != fingerprint:
+        st.session_state.pop('h3_site_estimates')
+        previous = None
+    with st.expander('Estimate missing delivery-site counts'):
+        st.write('Compare planned site counts with estimates from similar, earlier Tracker reports. '
+                 'Accuracy is measured on recorded values held out by reporting month.')
+        if st.button('Evaluate site estimates', disabled=not {'tracker','dictionary'} <= files.keys()):
+            from .site_estimates import report
+            try:
+                previous = (fingerprint, report(files['tracker'], files['dictionary']))
+                st.session_state['h3_site_estimates'] = previous
+            except (ValueError, KeyError, AuditError) as error:
+                previous = None
+                st.session_state.pop('h3_site_estimates', None)
+                st.error(str(error))
+        if previous:
+            stats, detail, download = previous[1]
+            st.write(f"{stats['applicable_cells']} applicable cells · {stats['missing']} missing · "
+                     f"{stats['estimated']} statistical estimates · {stats['still_unknown']} still unknown")
+            if stats['applicable_cells']:
+                st.dataframe(stats['metrics'], hide_index=True)
+                plan = stats['plan_validation']
+                st.write(f"Across all {plan['recorded_pairs']} available pairs, planned and delivering counts "
+                         f"agreed in {plan['exact']}. The download includes {stats['full_delivery_scenarios']} "
+                         "missing-cell scenarios assuming all planned sites delivered.")
+
+                st.dataframe(detail[detail.status != 'recorded'], hide_index=True)
+                st.caption('Donor cells identify the original records. These estimates are exploratory and stay outside the H3 models.')
+            else:
+                st.info('These inputs contain no eligible delivery-site fields with a matching dictionary definition.')
+            st.download_button('Download site estimates and validation', download,
+                               'delivery_site_validation.zip', 'application/zip')
     if st.button('Rebuild H3 from source files', disabled=not ready, key='h3_sources_run'):
         st.session_state.pop('h3_source_report', None)
         st.session_state.pop('h3_source_analysis', None)

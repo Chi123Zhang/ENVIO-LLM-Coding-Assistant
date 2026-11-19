@@ -24,6 +24,7 @@ def full_demo_sources():
         for slot in range(1,5):
             headers.extend([f'{base}_{slot}',f'{base}{start}_{slot}',f'{base}{stop}_{slot}',
                             f'{base}{venue}_{slot}',f'{base}{start_date}_{slot}_yr',f'{base}{start_date}_{slot}_mo'])
+    headers.extend([f'hcs_orc209{suffix}_1' for suffix in ('q', 'qb')])
     tracker.append(headers)
     dd_book=Workbook();dd=dd_book.active;dd.title='ORCCAT_DD'
     dd.append(['Version','Variable / Field Name','Field Label',BRANCH,CHOICES])
@@ -37,6 +38,8 @@ def full_demo_sources():
                 (stop,'Has this strategy been discontinued?','1, Yes | 0, No'),
                 (venue,'Venue','1, Fictional site A | 2, Fictional site B | 3, Fictional site C')]:
                 dd.append(['FICTIONAL_V1',f'{base}{suffix}_{slot}',label,'',choices])
+    dd.append(['FICTIONAL_V1','hcs_orc209qb_1','How many fixed physical locations are currently delivering services?', '', ''])
+    dd.append(['FICTIONAL_V1','hcs_orc209q_1','How many fixed physical locations is the strategy intended to be implemented in?', '', ''])
     monthly=[];annual=[];attendance=[]
     for cid in range(1,7):
         county=f'DEMO_{cid:02d}';lookup.append([cid,county]);fips=f'99{cid:03d}'
@@ -58,6 +61,8 @@ def full_demo_sources():
                                 f'{base}{venue}_{slot}':1+(slot+cid+j)%3,
                                 f'{base}{start_date}_{slot}_yr':2024 if on else None,
                                 f'{base}{start_date}_{slot}_mo':1 if on else None})
+                    row['hcs_orc209q_1'] = 3
+                    row['hcs_orc209qb_1'] = None if cid == 1 and month == 7 else 1 + cid % 3
                 tracker.append([row.get(h) for h in headers])
         annual.append({'County':county,'County Code':fips,'Year Code':2024,'Population':60000+cid*3000,'Deaths':total})
         for period in pd.period_range('2023-11','2024-10',freq='M'):
