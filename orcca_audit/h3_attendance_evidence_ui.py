@@ -96,12 +96,16 @@ def render_evidence(archive):
             st.caption('Source ID: ' + doc['chunk_id'])
     st.subheader('H3 sensitivity from retrieved meeting evidence')
     estimator = st.selectbox('Evidence-gated attendance estimator',
-        ['select_by_masked_error','interpolation','local_donors'])
+        ['select_by_blocked_validation','select_by_masked_error','interpolation','local_donors','time_weighted_donors'])
     st.caption('Use dated meeting evidence to identify eligible missing months, then estimate attendance '
                'from recorded meetings in the same county. Estimates remain statistical values. '
                'The separate local-model experiment below can attempt explicit count extraction.')
     no_change_context = st.session_state.get('h3_no_change_comparison')
-    sensitivity_key = fingerprint + estimator + (no_change_context[0] if no_change_context else '')
+    from .h3_attendance_validation import PROTOCOL_VERSION, render_validation
+    sensitivity_key = PROTOCOL_VERSION + fingerprint + estimator + (no_change_context[0] if no_change_context else '')
+    st.caption('The default selects among three estimators using blocked attendance prediction error. '
+               'Separate held-out months evaluate prediction; mortality and p-values do not select the method. '
+               'The earlier masked-error method remains available for comparison.')
     if st.button('Run evidence-gated H3 sensitivity'):
         from .h3_hybrid_attendance import run_hybrid
         baseline = archive
@@ -118,6 +122,7 @@ def render_evidence(archive):
     sensitivity = st.session_state.get('h3_evidence_sensitivity')
     if sensitivity and sensitivity[0]==sensitivity_key:
         paths,audit,package = sensitivity[1]
+        render_validation(package, key='h3_evidence')
         from .h3_results_ui import render_path_results
         render_path_results(paths, key='h3_evidence')
         st.dataframe(audit,hide_index=True)

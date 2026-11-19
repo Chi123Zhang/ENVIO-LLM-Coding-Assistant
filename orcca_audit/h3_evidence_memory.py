@@ -1,5 +1,6 @@
 """Session-owned source parsing and retrieval caches for the H3 evidence corpus."""
 from hashlib import sha256
+from copy import deepcopy
 from io import BytesIO
 import json
 from pathlib import PurePath
@@ -12,7 +13,7 @@ from pypdf import PdfReader
 from .engine import AuditError
 from .retrieval import retrieve, validate_documents
 
-VERSION = 'h3-evidence-memory-2'
+VERSION = 'h3-evidence-memory-3'
 MAX_FILES = 300
 MAX_BYTES = 200 * 1024 * 1024
 
@@ -25,9 +26,9 @@ def cached_search(query, docs, cache, *, top_k=5, backend='bm25'):
     validate_documents(docs)
     from .hybrid import MODEL_REVISIONS
     key = fingerprint([VERSION, MODEL_REVISIONS, query, backend, top_k,
-                       [(d['chunk_id'], d['sha256']) for d in docs]])
+                       [{k: v for k, v in d.items() if k != 'text'} for d in docs]])
     if key in cache:
-        return dict(cache[key], memory_reused=True)
+        return dict(deepcopy(cache[key]), memory_reused=True)
     if backend == 'hybrid_rrf' and docs:
         from .hybrid import MODEL_REVISIONS, rrf_retrieve
         try:
@@ -42,8 +43,14 @@ def cached_search(query, docs, cache, *, top_k=5, backend='bm25'):
                           reason=type(error).__name__)
     else:
         result = retrieve(query, docs, backend=backend, top_k=top_k)
-    cache[key] = result
-    return dict(result, memory_reused=False)
+    # A transient model failure must be retryable. Empty scopes are cheap and
+    # should not evict useful retrievals when most attendance months lack PDFs.
+    if result.get('status') == 'retrieved_evidence_unreviewed' and result.get('citations'):
+        queries = [k for k in cache if k != 'scoped_vector_indexes']
+        if len(queries) >= 128:
+            cache.pop(queries[0])
+        cache[key] = deepcopy(result)
+    return dict(deepcopy(result), memory_reused=False)
 
 
 def parse_support(name, raw, county, counties, document_type='interview', document_date=''):
