@@ -22,6 +22,7 @@ def synthetic_sources():
 
 def clear_sources():
     st.session_state.pop('implementation_replay_result', None)
+    st.session_state.pop('h3_site_path', None)
     st.session_state.pop('h3_site_estimates', None)
     st.session_state.pop('site_retrospective', None)
     st.session_state.pop('h3_source_report', None)
@@ -192,6 +193,8 @@ def render(private):
                  'have not run in this source-reconstruction report.')
         render_analysis(archive, fingerprint)
         if private and not synthetic:
+            from .site_path import render as render_site_path
+            render_site_path(archive, files, fingerprint)
             from .h3_no_change_ui import render_no_change
             render_no_change(archive,files['tracker'],files['dictionary'])
             from .h3_attendance_evidence_ui import render_evidence
