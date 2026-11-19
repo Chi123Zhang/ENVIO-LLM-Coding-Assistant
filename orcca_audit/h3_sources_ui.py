@@ -21,6 +21,7 @@ def synthetic_sources():
 
 
 def clear_sources():
+    st.session_state.pop('implementation_replay_result', None)
     st.session_state.pop('h3_site_estimates', None)
     st.session_state.pop('h3_source_report', None)
     st.session_state.pop('h3_source_analysis', None)
@@ -72,6 +73,8 @@ def render(private):
     else:
         st.caption('Upload authorized files to this private server session.')
         epoch = str(st.session_state.get('h3_source_epoch', 0))
+        from .implementation_replay import render as render_replay
+        render_replay(epoch)
         files = {}
         st.subheader('1 · Primary data: three original tables')
         st.caption('Upload the original records here. Death counts and mortality rates are not interchangeable.')
