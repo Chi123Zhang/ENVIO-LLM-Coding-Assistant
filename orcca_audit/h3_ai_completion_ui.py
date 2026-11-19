@@ -126,6 +126,11 @@ def render_ai_experiment(archive):
         hybrid = result.get('hybrid_attendance')
         if permitted and hybrid and hybrid[0]==estimator:
             paths, audit, package = hybrid[1]
+            with ZipFile(BytesIO(package)) as validation_zip:
+                protocol = json.loads(validation_zip.read('protocol.json'))
+            st.caption(f"Attendance estimator: {protocol['method']}; "
+                       f"{protocol['validation_rows']} jointly masked records. "
+                       f"Mean absolute errors: {protocol['masked_mae']}.")
             st.dataframe(paths, hide_index=True)
             st.dataframe(audit, hide_index=True)
             st.download_button('Download hybrid H3 comparison', package, 'h3_hybrid.zip', 'application/zip')
