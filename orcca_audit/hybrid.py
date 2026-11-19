@@ -65,3 +65,36 @@ def local_hybrid_retrieve(query, documents, top_k):
     rag.index = _BoundedIndex(index)
     by_id = {d["chunk_id"]: d for d in documents}
     return [(by_id[c.chunk_id], score) for c, score in rag.retrieve(query, top_k=top_k)]
+
+
+def rrf_retrieve(query, documents, top_k, index_cache):
+    """Fuse scoped lexical and dense rankings, then cross-encode 16 candidates."""
+    import hashlib
+    import json
+    import numpy as np
+    from rag_system import BM25Okapi, tokenize_for_bm25
+    embedder, reranker = local_models()
+    key = hashlib.sha256(json.dumps([MODEL_REVISIONS,
+        [(d['chunk_id'],d['sha256']) for d in documents]],sort_keys=True).encode()).hexdigest()
+    reused = key in index_cache
+    if not reused:
+        texts = [d['text'] for d in documents]
+        matrix = embedder.encode(texts,convert_to_numpy=True,normalize_embeddings=True,batch_size=16).astype('float32')
+        bm25 = BM25Okapi([tokenize_for_bm25(t) for t in texts])
+        # Session-owned evidence index. Bound storage by corpus, never by user-global cache.
+        if len(index_cache)>=24:
+            index_cache.pop(next(iter(index_cache)))
+        index_cache[key]=(matrix,bm25)
+    matrix,bm25 = index_cache[key]
+    vector = embedder.encode([query],convert_to_numpy=True,normalize_embeddings=True).astype('float32')[0]
+    lexical = bm25.get_scores(tokenize_for_bm25(query))
+    dense = matrix @ vector
+    rankings = [np.argsort(-lexical,kind='stable')[:20],np.argsort(-dense,kind='stable')[:20]]
+    scores = {}
+    for ranking in rankings:
+        for rank,index in enumerate(ranking,1):
+            scores[int(index)] = scores.get(int(index),0) + 1/(60+rank)
+    selected = sorted(scores,key=lambda i:(-scores[i],documents[i]['chunk_id']))[:16]
+    reranked = reranker.predict([(query,documents[i]['text']) for i in selected],batch_size=16)
+    order = sorted(zip(selected,reranked),key=lambda pair:(-float(pair[1]),documents[pair[0]]['chunk_id']))[:top_k]
+    return [(documents[i],float(score)) for i,score in order],reused

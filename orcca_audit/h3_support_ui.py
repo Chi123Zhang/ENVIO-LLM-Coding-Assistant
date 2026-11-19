@@ -58,7 +58,7 @@ def render_support(archive):
     county = st.selectbox('Supplementary evidence county',sorted({d['county'] for d in docs}))
     question = st.text_input('Question for supplementary evidence',
                             value='coalition attendance meeting implementation start stop barriers')
-    backend = st.selectbox('Supplementary retrieval method',['bm25','hybrid'])
+    backend = st.selectbox('Supplementary retrieval method',['bm25','hybrid_rrf'])
     if st.button('Search supplementary H3 evidence',disabled=not docs):
         scope = [d for d in docs if d['county']==county]
         cache = st.session_state.setdefault('h3_query_memory',{})

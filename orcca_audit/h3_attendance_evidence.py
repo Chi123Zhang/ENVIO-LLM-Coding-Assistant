@@ -73,7 +73,7 @@ def parse_pdf(name, raw, counties):
     return docs
 
 
-def build_evidence_review(source_archive, pdf_files, *, synthetic=False, parse_cache=None, query_cache=None):
+def build_evidence_review(source_archive, pdf_files, *, synthetic=False, parse_cache=None, query_cache=None, backend="bm25"):
     data, metadata = load_source(source_archive)
     expected = 'synthetic demonstration' if synthetic else 'private research'
     if metadata['classification'] != expected:
@@ -114,7 +114,7 @@ def build_evidence_review(source_archive, pdf_files, *, synthetic=False, parse_c
     for (county, month), group in gaps:
         case_id = f'{county.upper()}-{month}'
         scoped = [d for d in documents if d['county'] == county and d['month'] == month]
-        result = cached_search(QUERY, scoped, query_cache, top_k=5)
+        result = cached_search(QUERY, scoped, query_cache, top_k=5,backend=backend)
         citations = result['citations']
         potential = group.loc[group.active_snapshot.notna() & group.outcome_available, 'menu'].tolist()
         case = dict(case_id=case_id, run_id=run_id, county=county, attendance_month=month,
@@ -139,14 +139,14 @@ def build_evidence_review(source_archive, pdf_files, *, synthetic=False, parse_c
         duplicate_files=sum(r['status']=='duplicate_bytes' for r in inventory),
         parsed_from_memory=sum(r.get('parse_reused',False) for r in inventory),
         retrieval_memory_hits=sum(bool(r['citations']) and r.get('memory_reused',False) for r in logs),
-        file_inventory=inventory,
+        file_inventory=inventory, retrieval_backend=backend,
         cases_with_same_county_month_pdf=int(queue.source_pdfs.gt(0).sum()),
         actual_bm25_queries=sum(bool(r['citations']) and not r.get('memory_reused',False) for r in logs),
         priority_cases_with_evidence=int((queue.source_pdfs.gt(0) & queue.potential_menu_paths.gt(0)).sum()),
         human_confirmed_values=0, applied_values=0, llm_calls=0, external_model_calls=0,
         memory_kind='versioned original-source retrieval memory; no generated answers or reviewer labels',
         evidence_scope='Supplied PDFs only. Filename dates are retrieval filters, not verified measurement dates.')
-    memory = dict(run_id=run_id, documents=documents,
+    memory = dict(run_id=run_id, documents=documents, retrieval_backend=backend,
                   memory_sha256=sha256(json.dumps(documents, sort_keys=True).encode()).hexdigest())
     output = BytesIO()
     with ZipFile(output, 'w', ZIP_DEFLATED) as z:
