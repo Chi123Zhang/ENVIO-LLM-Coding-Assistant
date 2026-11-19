@@ -109,8 +109,14 @@ def analyse_reconstruction(source_archive):
         models_fitted=int(diagnostics.point_fit.eq('finite_fit').sum()),
         specifications_attempted=len(checks),
         inference_available=int(sum(c.get('inference') == 'Approximate jackknife' for c in checks)),
-        specification=CONFIG,
+        specification=(dict(CONFIG, input_completion='AI-unreviewed source-based candidates',
+                            imputation='Experimental AI attendance additions; no human confirmation')
+                       if 'ai_unreviewed_attendance_county_months' in metadata else CONFIG),
     )
+    addition_label = ('AI-unreviewed experimental attendance additions' if
+                      metadata.get('eligible_for_confirmatory_analysis') is False and
+                      'ai_unreviewed_attendance_county_months' in metadata
+                      else 'Evidence-reviewed additions')
     page = (
         '<!doctype html><html lang="en"><meta charset="utf-8"><title>H3 source analysis</title>'
         '<style>body{font:16px system-ui;max-width:1100px;margin:3rem auto;padding:1rem;line-height:1.5}'
@@ -120,7 +126,7 @@ def analyse_reconstruction(source_archive):
         f'{metadata["models_fitted"]} of {len(checks)} specifications produced finite point estimates. '
         f'{metadata["inference_available"]} completed all delete-county fits.</p>'
         '<p>Attendance at t−2 → implementation at t−1 → CDC death counts at t. '
-        f'Unknown values remain unknown. Evidence-reviewed additions: {metadata.get("imputed_values", 0)}.</p>'
+        f'Unknown values remain unknown. {addition_label}: {metadata.get("imputed_values", 0)}.</p>'
         f'<p>Dictionary-supported rule-derived mediator cells: {metadata.get("rule_reconstructed_mediator_values", 0)}. '
         'These are conditional state reconstructions, not human-adjudicated attendance additions.</p>'
         '<h2>Exploratory path tests</h2>' + path_results.to_html(index=False, float_format=lambda x: f'{x:.4f}')
