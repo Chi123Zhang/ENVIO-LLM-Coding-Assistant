@@ -96,7 +96,8 @@ def render_evidence(archive):
             st.caption('Source ID: ' + doc['chunk_id'])
     st.subheader('H3 sensitivity from retrieved meeting evidence')
     estimator = st.selectbox('Evidence-gated attendance estimator',
-        ['select_by_blocked_validation','select_by_masked_error','interpolation','local_donors','time_weighted_donors'])
+        ['select_by_blocked_validation','select_by_masked_error','interpolation','local_donors','time_weighted_donors',
+         'experimental_contextual_bandit'])
     st.caption('Use dated meeting evidence to identify eligible missing months, then estimate attendance '
                'from recorded meetings in the same county. Estimates remain statistical values. '
                'The separate local-model experiment below can attempt explicit count extraction.')
@@ -106,6 +107,10 @@ def render_evidence(archive):
     st.caption('The default selects among three estimators using blocked attendance prediction error. '
                'Separate held-out months evaluate prediction; mortality and p-values do not select the method. '
                'The earlier masked-error method remains available for comparison.')
+    if estimator == 'experimental_contextual_bandit':
+        st.info('Experimental one-step reinforcement learning selects an estimator per gap. '
+                'Rewards use masked recorded attendance only. Test errors are reported separately; '
+                'this does not train an LLM or verify missing headcounts.')
     if st.button('Run evidence-gated H3 sensitivity'):
         from .h3_hybrid_attendance import run_hybrid
         baseline = archive
