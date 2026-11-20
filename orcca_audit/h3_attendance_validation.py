@@ -109,3 +109,24 @@ def render_validation(package, *, key):
         st.caption(protocol['blocked_validation']['warning'])
         st.download_button('Download attendance validation scores (CSV)',safe_csv(view),
             'h3_attendance_validation.csv','text/csv',key=key + '_validation')
+    with ZipFile(BytesIO(package)) as z:
+        if 'bandit_evaluation.csv' not in z.namelist():
+            return
+        policy = json.loads(z.read('bandit_policy.json'))
+        bandit_scores = pd.read_csv(z.open('bandit_evaluation.csv'))
+    with st.expander('Experimental reinforcement learning evaluation',expanded=True):
+        st.write(f"Policy status: {policy['status']}; {policy['training_rows']} training feedback events.")
+        st.caption('A lightweight contextual bandit learns which attendance estimator to use. '
+                   'All methods below use the same held-out records. The test targets never update the policy. '
+                   'This reused research benchmark is exploratory; it is not independent external validation. '
+                   'Rewards use attendance prediction error, never mortality or H3 p-values.')
+        shown = bandit_scores.copy()
+        shown['method'] = shown['method'].replace({'bandit_prediction':'Experimental RL',
+            'interpolation':'Interpolation','local_donors':'Local donors',
+            'time_weighted_donors':'Time-weighted donors'})
+        st.dataframe(shown.rename(columns={'method':'Estimator','evaluated_rows':'Test records',
+            'mae':'MAE (people)','rmse':'RMSE (people)'}),hide_index=True)
+        if policy['status'] != 'trained_experimental':
+            st.warning('Insufficient training support; the declared statistical fallback was used.')
+        st.download_button('Download reinforcement learning evaluation (CSV)',safe_csv(bandit_scores),
+            'h3_rl_evaluation.csv','text/csv',key=key + '_rl_evaluation')

@@ -116,7 +116,8 @@ def render_ai_experiment(archive):
                    'Blocked selection compares three estimators with a separate held-out test split. AI counts are treated as fixed. '
                    'Other gaps stay unknown.')
         estimator = st.selectbox('Attendance estimator',
-            ['select_by_blocked_validation','select_by_masked_error','interpolation','local_donors','time_weighted_donors'],
+            ['select_by_blocked_validation','select_by_masked_error','interpolation','local_donors','time_weighted_donors',
+             'experimental_contextual_bandit'],
             help='Choose using attendance prediction error, or run a named sensitivity method.')
         if st.button('Run H3 with RAG and interpolation', disabled=not permitted):
             from .h3_hybrid_attendance import run_hybrid
