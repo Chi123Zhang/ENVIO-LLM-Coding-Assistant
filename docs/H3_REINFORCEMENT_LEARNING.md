@@ -35,6 +35,8 @@ chosen action, its actual sampling probability and the recorded-data reward.
 No rewards are invented for truly missing attendance. A missing month's
 prediction cannot update the policy, and test evaluation leaves policy memory
 unchanged. No user-global or external learning service is used.
+An AI-unreviewed completed archive is rejected as a training baseline, so prior
+generated attendance cannot silently become reward labels.
 
 ## Evaluation and limits
 

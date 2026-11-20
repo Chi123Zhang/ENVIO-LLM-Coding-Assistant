@@ -1,7 +1,10 @@
 import json
+from io import BytesIO
+from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from orcca_audit.h3_attendance_bandit import (
     action_probabilities, choose_estimator, context, fit_policy, reward,
@@ -78,3 +81,13 @@ def test_context_and_policy_ignore_mortality_and_p_values():
     assert original==fit_policy(observed,blocked,fallback)[0]
     series=pd.Series([12,15,14],index=['2021-04','2021-05','2021-07'])
     assert np.isfinite(context(series,'2021-06')).all()
+
+
+def test_ai_completed_archive_cannot_supply_rl_reward_labels():
+    from orcca_audit.h3_hybrid_attendance import run_hybrid
+    raw=BytesIO()
+    with ZipFile(raw,'w') as z:
+        z.writestr('run_metadata.json',json.dumps({'ai_unreviewed_attendance_county_months':1}))
+        z.writestr('county_month.csv','county,attendance_month,attendance\nDemo A,2021-06,999\n')
+    with pytest.raises(ValueError,match='recorded-attendance baseline'):
+        run_hybrid(raw.getvalue(),[],method='experimental_contextual_bandit')

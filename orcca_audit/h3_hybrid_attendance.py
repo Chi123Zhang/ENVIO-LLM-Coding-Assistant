@@ -15,6 +15,12 @@ from .h3_attendance_validation import blocked_validation, interpolate, neighbour
 
 def run_hybrid(archive, candidates, *, method="interpolation"):
     with ZipFile(BytesIO(archive)) as src:
+        if method == 'experimental_contextual_bandit':
+            metadata = json.loads(src.read('run_metadata.json'))
+            if (metadata.get('ai_unreviewed_attendance_county_months',0)
+                    or 'ai_unreviewed_cell_changes.csv' in src.namelist()):
+                raise ValueError('RL feedback requires the recorded-attendance baseline, '
+                                 'not an AI-unreviewed completed archive.')
         data = pd.read_csv(src.open('county_month.csv'))
     before = analyse_reconstruction(source_only_archive(archive))[1]
     keys = ['county', 'attendance_month']
