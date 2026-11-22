@@ -21,6 +21,7 @@ def synthetic_sources():
 
 
 def clear_sources():
+    st.session_state.pop('h3_count_mediators', None)
     for key in ['h3_support_corpus','h3_support_search','h3_support_parse_memory',
                 'h3_meeting_parse_memory','h3_query_memory','h3_generation_memory','h3_evidence_sensitivity']:
         st.session_state.pop(key,None)
@@ -196,6 +197,8 @@ def render(private):
                  'have not run in this source-reconstruction report.')
         render_analysis(archive, fingerprint)
         if private and not synthetic:
+            from .h3_count_mediators import render as render_counts
+            render_counts(archive, files['tracker'], files['dictionary'])
             from .site_path import render as render_site_path
             render_site_path(archive, files, fingerprint)
             from .h3_no_change_ui import render_no_change
