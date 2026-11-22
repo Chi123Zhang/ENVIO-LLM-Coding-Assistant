@@ -24,21 +24,51 @@ from .retrieval import retrieve, validate_documents
 
 
 def branching(expression, row):
-    """Fail closed; only flat REDCap binary equalities joined by AND or OR."""
+    """Evaluate bounded binary REDCap rules with explicit grouping, never eval.
+
+    Missing fields use three-valued logic. Mixed operators at the same nesting
+    level remain unresolved rather than assuming a precedence convention.
+    The entire rule must parse, including branches whose value is dominated.
+    """
     if empty(expression):return 'applicable'
-    parts=re.split(r'\s+(and|or)\s+',str(expression).strip(),flags=re.I)
-    operators={x.lower() for x in parts[1::2]}
-    if len(operators)>1:return 'unresolved_branching'
-    values=[]
-    for term in parts[::2]:
-        match=re.fullmatch(r"\[([a-zA-Z0-9_]+)\]\s*=\s*'([01])'",term.strip())
+    source=str(expression).strip()
+    if len(source)>16384:return 'unresolved_branching'
+    token=re.compile(r"\s*(?:\[([a-zA-Z0-9_]+)\]\s*=\s*'([01])'|(and|or)\b|([()]))",re.I)
+    tokens=[];position=0
+    while position<len(source):
+        match=token.match(source,position)
         if not match:return 'unresolved_branching'
-        field,value=match.groups()
-        if field not in row or empty(row[field]):values.append(None)
-        else:values.append(str(row[field]).removesuffix('.0')==value)
-    if operators=={'or'}:
-        result=True if True in values else None if None in values else False
-    else:result=False if False in values else None if None in values else True
+        field,value,operator,paren=match.groups()
+        tokens.append(('field',field,value) if field else (operator.lower() if operator else paren,))
+        position=match.end()
+        if len(tokens)>512:return 'unresolved_branching'
+    cursor=0
+    def group(depth=0):
+        nonlocal cursor
+        if depth>32:raise ValueError('nesting limit')
+        values=[];operators=set();expect_atom=True
+        while cursor<len(tokens) and tokens[cursor][0]!=')':
+            item=tokens[cursor];cursor+=1
+            if expect_atom:
+                if item[0]=='field':
+                    _,field,value=item
+                    values.append(None if field not in row or empty(row[field]) else str(row[field]).removesuffix('.0')==value)
+                elif item[0]=='(':
+                    values.append(group(depth+1))
+                    if cursor>=len(tokens) or tokens[cursor][0]!=')':raise ValueError('unclosed group')
+                    cursor+=1
+                else:raise ValueError('expected atom')
+            else:
+                if item[0] not in {'and','or'}:raise ValueError('expected operator')
+                operators.add(item[0])
+            expect_atom=not expect_atom
+        if expect_atom or len(operators)>1:raise ValueError('empty, incomplete or ambiguous group')
+        if operators=={'or'}:return True if True in values else None if None in values else False
+        return False if False in values else None if None in values else True
+    try:
+        result=group()
+        if cursor!=len(tokens):return 'unresolved_branching'
+    except ValueError:return 'unresolved_branching'
     return 'applicable' if result is True else 'structural_skip' if result is False else 'unresolved_branching'
 
 

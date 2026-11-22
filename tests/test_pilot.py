@@ -25,6 +25,35 @@ def test_branching_three_valued_and_fail_closed():
     assert branching('__import__("os")',{})=='unresolved_branching'
 
 
+@pytest.mark.parametrize('a,b,c,expected',[
+    (1,None,1,'applicable'),(0,1,1,'applicable'),
+    (0,0,1,'structural_skip'),(None,0,1,'unresolved_branching'),
+    (None,None,0,'structural_skip'),(1,0,None,'unresolved_branching'),
+])
+def test_branching_explicit_nested_groups(a,b,c,expected):
+    rule="([a]='1' or [b]='1') and [c]='1'"
+    assert branching(rule,{'a':a,'b':b,'c':c})==expected
+    assert branching('('+rule+')',{'a':a,'b':b,'c':c})==expected
+    assert branching("[a]='1' OR ([b]='1' AND [c]='0')",{'a':1})=='applicable'
+
+
+@pytest.mark.parametrize('rule',[
+    "([a]='1' or [b]='1'", "[a]='1')", "()", "([a]='1' and)",
+    "[a]='1' or unsupported()", "[a]='1' or [b]>0", "[a]='1' [b]='0'",
+    "[a]='1' or ([b]='1' and [c]='1' or [d]='1')",
+    "("*34+"[a]='1'"+")"*34,
+    "[a]='1'"+' or [b]=\'0\''*513,
+])
+def test_branching_rejects_entire_unsupported_rule(rule):
+    assert branching(rule,{'a':1,'b':0})=='unresolved_branching'
+
+
+def test_branching_grouped_rules_preserve_binary_coding_and_unknowns():
+    assert branching("([a]='0')",{'a':0.0})=='applicable'
+    assert branching("([missing]='0')",{})=='unresolved_branching'
+    assert branching("(([a]='1') and ([b]='0'))",{'a':1,'b':0})=='applicable'
+
+
 def test_no_reference_or_label_enters_memory_and_originals_unchanged():
     p=project();original=p['data']['raw_tracker'].copy(deep=True)
     # Deliberately supplied answer/model-like passages are not indexed.

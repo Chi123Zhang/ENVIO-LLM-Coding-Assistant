@@ -12,7 +12,9 @@ def statistical_summary(paths):
         ('Yes' if value < .05 else 'No') if ok else 'Unavailable'
         for value, ok in zip(p, valid)]
     data['mediator'] = data['mediator'].replace({
-        'active_snapshot': 'Active strategies', 'venue_types': 'Venue types'})
+        'active_snapshot': 'Active strategies', 'venue_types': 'Venue types',
+        'organization_strategy_pairs': 'Implementing organization–strategy pairs',
+        'fixed_site_strategy_pairs': 'Delivering fixed-site–strategy pairs'})
     low = pd.to_numeric(data.pop('low'), errors='coerce')
     high = pd.to_numeric(data.pop('high'), errors='coerce')
     data['95% interval'] = [f'{a:.4f} to {b:.4f}' if pd.notna(a) and pd.notna(b)
